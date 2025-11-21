@@ -1,0 +1,542 @@
+:root {
+    --bg-color: #0f172a;
+    --panel-bg: rgba(30, 41, 59, 0.7);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-color: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.3);
+    --border-color: rgba(148, 163, 184, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+}
+
+header {
+    padding: 1.5rem 2rem;
+    background: var(--bg-color);
+    /* Solid background for header */
+    border-bottom: 1px solid var(--border-color);
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+h1 {
+    font-size: 1.25rem;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    color: var(--text-secondary);
+}
+
+.content-wrapper {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    /* Prevent scrolling on body */
+}
+
+.controls-panel {
+    width: 320px;
+    background: var(--panel-bg);
+    border-right: 1px solid var(--border-color);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    overflow-y: auto;
+    flex-shrink: 0;
+    /* Remove absolute positioning */
+    position: static;
+    transform: none;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.control-section {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.control-section:last-child {
+    border-bottom: none;
+}
+
+.control-section h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+}
+
+.canvas-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    overflow: hidden;
+}
+
+.canvas-area {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.image-toolbar {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    align-items: flex-end;
+}
+
+.image-actions {
+    display: none;
+    gap: 0.35rem;
+}
+
+.image-toolbar.actions-visible .image-actions {
+    display: flex;
+}
+
+.image-actions button {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(15, 23, 42, 0.8);
+    color: var(--text-primary);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+
+.rotation-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+}
+
+.rotation-control input {
+    width: 110px;
+}
+
+.image-toolbar button {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease, border 0.2s ease;
+}
+
+.image-toolbar button.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #0f172a;
+}
+
+.image-controls {
+    display: none;
+    gap: 0.35rem;
+    align-items: flex-end;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.4);
+}
+
+.image-controls.visible {
+    display: flex;
+}
+
+.image-upload {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.image-upload input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.image-controls button {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: var(--text-primary);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+
+.opacity-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+.opacity-control input {
+    width: 120px;
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    /* Allow full width */
+    max-height: 100%;
+    position: relative;
+    z-index: 1;
+}
+
+.canvas-area.editing-image .image-overlay-wrapper {
+    z-index: 2;
+    pointer-events: auto;
+}
+
+.canvas-area.editing-image svg {
+    z-index: 0;
+}
+
+.image-overlay-wrapper {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.image-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: none;
+    border: 1px dashed rgba(255, 255, 255, 0.4);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    display: none;
+    min-width: 120px;
+    min-height: 80px;
+    pointer-events: none;
+    background: rgba(2, 6, 23, 0.8);
+}
+
+.image-frame.has-image {
+    display: block;
+}
+
+.image-frame.editing {
+    pointer-events: auto;
+}
+
+.image-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.resize-handle {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    right: 4px;
+    bottom: 4px;
+    cursor: nwse-resize;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.canvas-area.drag-over {
+    box-shadow: inset 0 0 0 2px rgba(56, 189, 248, 0.5);
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.control-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.value-display {
+    color: var(--accent-color);
+    font-family: 'Roboto Mono', monospace;
+}
+
+/* Custom Range Slider Styling */
+input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    background: transparent;
+}
+
+input[type=range]:focus {
+    outline: none;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    height: 20px;
+    width: 20px;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    -webkit-appearance: none;
+    margin-top: -7px;
+    box-shadow: 0 0 10px var(--accent-glow);
+    transition: transform 0.1s ease;
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+input[type=range]::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+input[type=range]::-moz-range-thumb {
+    height: 20px;
+    width: 20px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent-color);
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* SVG Elements Styling */
+.wheel {
+    fill: none;
+    stroke: var(--text-primary);
+    stroke-width: 2;
+    transition: all 0.3s ease;
+}
+
+.wheel-center {
+    fill: var(--accent-color);
+}
+
+.chassis-line {
+    stroke: var(--text-secondary);
+    stroke-width: 2;
+    stroke-dasharray: 5, 5;
+}
+
+/* Human Figure Canvas Layer */
+.bodyandhead-parent {
+    width: 1920px;
+    height: 1080px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-color: transparent;
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.bodyandhead-icon {
+    position: absolute;
+    top: 109.97px;
+    left: 937.23px;
+    width: 351.2px;
+    height: 609.8px;
+}
+
+.big-leg-icon {
+    position: absolute;
+    top: 579.94px;
+    left: 657.59px;
+    border-radius: 100px;
+    width: 406px;
+    height: 134.7px;
+    opacity: 0.5;
+}
+
+.bigarm-icon {
+    position: absolute;
+    top: 299.54px;
+    left: 939.81px;
+    border-radius: 100px;
+    width: 264px;
+    height: 167.5px;
+    opacity: 0.5;
+}
+
+.small-leg-icon {
+    position: absolute;
+    top: 587.22px;
+    left: 325px;
+    width: 407.2px;
+    height: 359.2px;
+    opacity: 0.5;
+}
+
+.small-arm-icon {
+    position: absolute;
+    top: 383.76px;
+    left: 631.92px;
+    width: 358.9px;
+    height: 88.8px;
+}
+
+/* Joint Markers */
+.hip-joint-parent {
+    position: absolute;
+    top: 99px;
+    left: 397px;
+    width: 839.8px;
+    height: 814.8px;
+}
+
+.hip-joint {
+    position: absolute;
+    top: 542.85px;
+    left: 591.97px;
+    border-radius: 50%;
+    background-color: #ef4444;
+    /* Red */
+    width: 21.8px;
+    height: 21.8px;
+}
+
+.elbow {
+    position: absolute;
+    top: 331.64px;
+    left: 557.38px;
+    border-radius: 50%;
+    background-color: #04ff00;
+    width: 21.8px;
+    height: 21.8px;
+    display: none;
+}
+
+.shoulder-joint {
+    position: absolute;
+    top: 224.21px;
+    left: 759.49px;
+    border-radius: 50%;
+    background-color: #04ff00;
+    width: 21.8px;
+    height: 21.8px;
+    display: none;
+}
+
+.knee {
+    position: absolute;
+    top: 515.53px;
+    left: 284.26px;
+    border-radius: 50%;
+    background-color: #04ff00;
+    width: 21.8px;
+    height: 21.8px;
+    display: none;
+}
+
+.hand-anchor {
+    position: absolute;
+    top: 307px;
+    left: 256px;
+    border-radius: 50%;
+    background-color: #ffff00;
+    /* Yellow */
+    width: 21.8px;
+    height: 21.8px;
+}
+
+.bottom-foot {
+    position: absolute;
+    top: 793px;
+    left: 0px;
+    border-radius: 50%;
+    background-color: #04ff00;
+    width: 21.8px;
+    height: 21.8px;
+    display: none;
+}
+
+.top-head {
+    position: absolute;
+    top: 0px;
+    left: 818px;
+    border-radius: 50%;
+    background-color: #04ff00;
+    width: 21.8px;
+    height: 21.8px;
+    display: none;
+}
+
+.heel {
+    position: absolute;
+    top: 832px;
+    left: 73px;
+    border-radius: 50%;
+    background-color: #04ff00;
+    width: 21.8px;
+    height: 21.8px;
+    display: none;
+}

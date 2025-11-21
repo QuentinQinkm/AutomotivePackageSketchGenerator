@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Side Profile Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Car Profile Generator</h1>
+        </header>
+
+        <div class="content-wrapper">
+            <aside class="controls-panel">
+                <!-- Chassis Section -->
+                <div class="control-section">
+                    <h3>Chassis</h3>
+                    <div class="control-group">
+                        <label for="tireDiameter">
+                            <span>Tire Diameter</span>
+                            <span class="value-display" id="tireDiameterVal">700mm</span>
+                        </label>
+                        <input type="range" id="tireDiameter" min="500" max="1000" value="700" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="wheelArchGap">
+                            <span>Wheel Arch Gap</span>
+                            <span class="value-display" id="wheelArchGapVal">50mm</span>
+                        </label>
+                        <input type="range" id="wheelArchGap" min="0" max="200" value="50" step="5">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="wheelBase">
+                            <span>Wheel Base</span>
+                            <span class="value-display" id="wheelBaseVal">2800mm</span>
+                        </label>
+                        <input type="range" id="wheelBase" min="2000" max="4000" value="2800" step="50">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="groundClearance">
+                            <span>Ground Clearance</span>
+                            <span class="value-display" id="groundClearanceVal">150mm</span>
+                        </label>
+                        <input type="range" id="groundClearance" min="100" max="400" value="150" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="floorThickness">
+                            <span>Floor Thickness</span>
+                            <span class="value-display" id="floorThicknessVal">100mm</span>
+                        </label>
+                        <input type="range" id="floorThickness" min="50" max="300" value="100" step="10">
+                    </div>
+
+
+                    <div class="control-group">
+                        <label for="frontOverhang">
+                            <span>Front Overhang (from Front Axle)</span>
+                            <span class="value-display" id="frontOverhangVal">900mm</span>
+                        </label>
+                        <input type="range" id="frontOverhang" min="400" max="1500" value="900" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="rearOverhang">
+                            <span>Rear Overhang (from Rear Axle)</span>
+                            <span class="value-display" id="rearOverhangVal">1000mm</span>
+                        </label>
+                        <input type="range" id="rearOverhang" min="400" max="1500" value="1000" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="frontApproachAngle">
+                            <span>Front Approach Angle</span>
+                            <span class="value-display" id="frontApproachAngleVal">18°</span>
+                        </label>
+                        <input type="range" id="frontApproachAngle" min="0" max="60" value="18" step="1">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="rearDepartureAngle">
+                            <span>Rear Departure Angle</span>
+                            <span class="value-display" id="rearDepartureAngleVal">18°</span>
+                        </label>
+                        <input type="range" id="rearDepartureAngle" min="0" max="60" value="18" step="1">
+                    </div>
+                </div>
+
+                <!-- Seat Position Section -->
+                <div class="control-section">
+                    <h3>Seat Position</h3>
+                    <div class="control-group">
+                        <label for="hPointHeight">
+                            <span>H-Point Height (from Floor)</span>
+                            <span class="value-display" id="hPointHeightVal">280mm</span>
+                        </label>
+                        <input type="range" id="hPointHeight" min="100" max="500" value="280" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="hPointX">
+                            <span>H-Point X (from Front Axle)</span>
+                            <span class="value-display" id="hPointXVal">1100mm</span>
+                        </label>
+                        <input type="range" id="hPointX" min="500" max="2000" value="1100" step="10">
+                    </div>
+                </div>
+
+                <!-- Driver Section -->
+                <div class="control-section">
+                    <h3>Driver</h3>
+                    <div class="control-group">
+                        <label for="bodyReclineAngle">
+                            <span>Body Recline Angle (from Vertical)</span>
+                            <span class="value-display" id="bodyReclineAngleVal">28°</span>
+                        </label>
+                        <input type="range" id="bodyReclineAngle" min="10" max="70" value="28" step="1">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="hipPedalDistance">
+                            <span>Hip-Pedal X Distance</span>
+                            <span class="value-display" id="hipPedalDistanceVal">600mm</span>
+                        </label>
+                        <input type="range" id="hipPedalDistance" min="400" max="950" value="600" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="handHeight">
+                            <span>Hand Height (from Hip Y)</span>
+                            <span class="value-display" id="handHeightVal">300mm</span>
+                        </label>
+                        <input type="range" id="handHeight" min="-200" max="800" value="300" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="handDistanceX">
+                            <span>Hand Distance X (from Hip)</span>
+                            <span class="value-display" id="handDistanceXVal">400mm</span>
+                        </label>
+                        <input type="range" id="handDistanceX" min="100" max="800" value="400" step="10">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="mannequinHeight">
+                            <span>Driver Height</span>
+                        </label>
+                        <select id="mannequinHeight">
+                            <option value="160">160 cm</option>
+                            <option value="170" selected>170 cm</option>
+                            <option value="180">180 cm</option>
+                            <option value="190">190 cm</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group checkbox-group">
+                        <label for="showMannequin">
+                            <span>Show Driver</span>
+                        </label>
+                        <input type="checkbox" id="showMannequin" checked>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="canvas-container">
+                <div class="canvas-area" id="canvasArea">
+                    <div class="image-toolbar">
+                        <button id="toggleImageEdit" type="button">Image</button>
+                        <div class="image-actions" id="imageActions">
+                            <button id="flipImage" type="button">Flip</button>
+                            <label class="rotation-control">
+                                Rotate
+                                <input type="range" id="imageRotate" min="-45" max="45" step="1" value="0">
+                            </label>
+                        </div>
+                        <div class="image-controls" id="imageControls">
+                            <label class="image-upload">
+                                Upload
+                                <input type="file" id="imageUpload" accept="image/*">
+                            </label>
+                            <button id="deleteImage" type="button">Delete</button>
+                            <div class="opacity-control">
+                                <span>Transparency</span>
+                                <input type="range" id="imageOpacity" min="0" max="1" step="0.05" value="1">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="image-overlay-wrapper" id="imageOverlayWrapper">
+                        <div class="image-frame" id="imageFrame">
+                            <img id="overlayImage" alt="Reference overlay">
+                            <div class="resize-handle" id="resizeHandle"></div>
+                        </div>
+                    </div>
+                    <div class="bodyandhead-parent">
+                        <img class="bodyandhead-icon" src="HumanFigure/BodyAndHead.svg" alt="body and head">
+                        <img class="big-leg-icon" src="HumanFigure/Big Leg.svg" alt="big leg">
+                        <img class="bigarm-icon" src="HumanFigure/BigArm.svg" alt="big arm">
+                        <img class="small-leg-icon" src="HumanFigure/Small Leg.svg" alt="small leg">
+                        <img class="small-arm-icon" src="HumanFigure/Small Arm.svg" alt="small arm">
+                        <div class="hip-joint-parent">
+                            <div class="hip-joint"></div>
+                            <div class="elbow"></div>
+                            <div class="shoulder-joint"></div>
+                            <div class="knee"></div>
+                            <div class="hand-anchor"></div>
+                            <div class="bottom-foot"></div>
+                            <div class="top-head"></div>
+                            <div class="heel"></div>
+                        </div>
+                    </div>
+                    <svg id="carCanvas" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Elements will be drawn here by JS -->
+                        <g id="drawingGroup"></g>
+                    </svg>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
