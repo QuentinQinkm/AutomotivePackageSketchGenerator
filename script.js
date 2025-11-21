@@ -18,11 +18,19 @@ document.addEventListener('DOMContentLoaded', () => {
     pointTooltip.className = 'point-tooltip';
     canvasArea.appendChild(pointTooltip);
 
+    const splineMenu = document.createElement('div');
+    splineMenu.className = 'spline-menu';
+    splineMenu.style.display = 'none';
+    canvasArea.appendChild(splineMenu);
+
     const COLOR_FRONT_POINT = '#10b981';
     const COLOR_REAR_POINT = '#f97316';
     const COLOR_BLUE = '#38bdf8';
     const DOT_RADIUS = 3.5;
     const DOT_RADIUS_ACTIVE = 5;
+    const SPLINE_DOT_RADIUS = 2;
+    const SPLINE_DOT_ACTIVE_RADIUS = 3;
+    const SPLINE_HANDLE_RADIUS = 2;
 
     function setDotVisualState(element, isActive) {
         if (!element) return;
@@ -32,6 +40,17 @@ document.addEventListener('DOMContentLoaded', () => {
             element.setAttribute('stroke-width', '1.5');
         } else {
             element.setAttribute('stroke', 'none');
+            element.removeAttribute('stroke-width');
+        }
+    }
+
+    function setSplineDotState(element, isActive, baseRadius = SPLINE_DOT_RADIUS, activeRadius = SPLINE_DOT_ACTIVE_RADIUS) {
+        if (!element) return;
+        element.setAttribute('r', (isActive ? activeRadius : baseRadius).toString());
+        element.setAttribute('stroke', isActive ? 'white' : 'none');
+        if (isActive) {
+            element.setAttribute('stroke-width', '1');
+        } else {
             element.removeAttribute('stroke-width');
         }
     }
@@ -81,7 +100,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const splineMenuOptions = [
+        { type: 'hard', label: 'Hard Angle' },
+        { type: 'symmetric', label: 'Symmetric' },
+        { type: 'asymmetric', label: 'Asymmetric' }
+    ];
+
+    splineMenuOptions.forEach(option => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = option.label;
+        button.dataset.type = option.type;
+        button.addEventListener('click', (event) => {
+            event.stopPropagation();
+            setSplineType(option.type);
+        });
+        splineMenu.appendChild(button);
+    });
+
+    let splineMenuVisible = false;
+    let ignoreNextDocumentClick = false;
+
     let tooltipPointKey = null;
+    let splineMenuAnchorPx = { x: 0, y: 0 };
 
 
     // Inputs
@@ -146,6 +187,13 @@ document.addEventListener('DOMContentLoaded', () => {
         rearWindowEndY: 775,
         bumperEndX: -890,
         bumperEndY: 535,
+        bonnetSplineX: 150,
+        bonnetSplineY: 900,
+        bonnetSplineType: 'hard',
+        bonnetSplineHandleInX: -200,
+        bonnetSplineHandleInY: 0,
+        bonnetSplineHandleOutX: 200,
+        bonnetSplineHandleOutY: 0,
         hPointHeight: parseInt(hPointHeightInput.value),
         hPointX: parseInt(hPointXInput.value),
         hipPedalDistance: parseInt(hipPedalDistanceInput.value),
@@ -208,6 +256,20 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    function getSplineAnchorPx(frontWheelX, wheelY) {
+        return {
+            x: frontWheelX - (state.bonnetSplineX * SCALE),
+            y: wheelY - (state.bonnetSplineY * SCALE)
+        };
+    }
+
+    function getSplineHandlePx(handleX, handleY, anchorPx) {
+        return {
+            x: anchorPx.x - (handleX * SCALE),
+            y: anchorPx.y - (handleY * SCALE)
+        };
+    }
+
     function formatTooltipText(pointKey) {
         const config = BODY_POINT_CONFIG[pointKey];
         if (!config) return '';
@@ -249,6 +311,77 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         tooltipPointKey = null;
         pointTooltip.style.display = 'none';
+    }
+
+    function positionSplineMenu(anchorPxX, anchorPxY) {
+        const ctm = svg.getScreenCTM();
+        if (!ctm) return;
+        const pt = svg.createSVGPoint();
+        pt.x = anchorPxX;
+        pt.y = anchorPxY;
+        const screenPoint = pt.matrixTransform(ctm);
+        const canvasRect = canvasArea.getBoundingClientRect();
+        splineMenu.style.left = `${screenPoint.x - canvasRect.left + 12}px`;
+        splineMenu.style.top = `${screenPoint.y - canvasRect.top - 12}px`;
+    }
+
+    function updateSplineMenuActiveState() {
+        splineMenu.querySelectorAll('button').forEach((button) => {
+            button.classList.toggle('active', button.dataset.type === state.bonnetSplineType);
+        });
+    }
+
+    function showSplineMenu(anchorPxX, anchorPxY) {
+        splineMenuAnchorPx = { x: anchorPxX, y: anchorPxY };
+        positionSplineMenu(anchorPxX, anchorPxY);
+        updateSplineMenuActiveState();
+        splineMenu.style.display = 'flex';
+        splineMenuVisible = true;
+        ignoreNextDocumentClick = true;
+    }
+
+    function hideSplineMenu() {
+        splineMenu.style.display = 'none';
+        splineMenuVisible = false;
+    }
+
+    document.addEventListener('click', (event) => {
+        if (!splineMenuVisible) return;
+        if (ignoreNextDocumentClick) {
+            ignoreNextDocumentClick = false;
+            return;
+        }
+        if (splineMenu.contains(event.target)) return;
+        hideSplineMenu();
+    });
+
+    function ensureSplineHandlesDefaults() {
+        if (state.bonnetSplineHandleInX === 0 && state.bonnetSplineHandleInY === 0 &&
+            state.bonnetSplineHandleOutX === 0 && state.bonnetSplineHandleOutY === 0) {
+            state.bonnetSplineHandleInX = -150;
+            state.bonnetSplineHandleInY = 0;
+            state.bonnetSplineHandleOutX = 150;
+            state.bonnetSplineHandleOutY = 0;
+        }
+    }
+
+    function setSplineType(type) {
+        state.bonnetSplineType = type;
+        if (type === 'hard') {
+            state.bonnetSplineHandleInX = 0;
+            state.bonnetSplineHandleInY = 0;
+            state.bonnetSplineHandleOutX = 0;
+            state.bonnetSplineHandleOutY = 0;
+        } else if (type === 'symmetric') {
+            ensureSplineHandlesDefaults();
+            state.bonnetSplineHandleInX = -state.bonnetSplineHandleOutX;
+            state.bonnetSplineHandleInY = -state.bonnetSplineHandleOutY;
+        } else {
+            ensureSplineHandlesDefaults();
+        }
+        updateSplineMenuActiveState();
+        hideSplineMenu();
+        draw();
     }
 
 
@@ -578,6 +711,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const rooftopEndPx = getPointPosition('rooftopEnd', frontWheelX, rearWheelX, wheelY);
         const rearWindowEndPx = getPointPosition('rearWindowEnd', frontWheelX, rearWheelX, wheelY);
         const bumperEndPx = getPointPosition('bumperEnd', frontWheelX, rearWheelX, wheelY);
+        const splineAnchorPx = getSplineAnchorPx(frontWheelX, wheelY);
+        const splineHandleInPx = getSplineHandlePx(state.bonnetSplineHandleInX, state.bonnetSplineHandleInY, splineAnchorPx);
+        const splineHandleOutPx = getSplineHandlePx(state.bonnetSplineHandleOutX, state.bonnetSplineHandleOutY, splineAnchorPx);
+
+        if (splineMenuVisible) {
+            positionSplineMenu(splineAnchorPx.x, splineAnchorPx.y);
+        }
 
         // Rear Overhang Anchor
         // Find point on rear tangent line where x = rearWheelX + rearOverhang
@@ -602,22 +742,129 @@ document.addEventListener('DOMContentLoaded', () => {
         rearBumperLine.setAttribute("stroke-width", "2");
         drawingGroup.appendChild(rearBumperLine);
 
-        // Draw body profile polyline connecting all points including rear overhang anchor
-        const bodyProfileLine = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-        const points = [
-            `${breakPointX},${breakPointY}`,
-            `${bonnetEndPx.x},${bonnetEndPx.y}`,
-            `${windowEndPx.x},${windowEndPx.y}`,
-            `${rooftopEndPx.x},${rooftopEndPx.y}`,
-            `${rearWindowEndPx.x},${rearWindowEndPx.y}`,
-            `${bumperEndPx.x},${bumperEndPx.y}`,
-            `${targetRearX},${targetRearY}` // Connect to rear overhang anchor
-        ].join(" ");
-        bodyProfileLine.setAttribute("points", points);
-        bodyProfileLine.setAttribute("stroke", COLOR_BLUE);
-        bodyProfileLine.setAttribute("stroke-width", "2");
-        bodyProfileLine.setAttribute("fill", "none");
-        drawingGroup.appendChild(bodyProfileLine);
+        // Draw body profile path with optional spline segment
+        let bodyPath = `M ${breakPointX} ${breakPointY}`;
+
+        if (state.bonnetSplineType === 'hard') {
+            bodyPath += ` L ${splineAnchorPx.x} ${splineAnchorPx.y}`;
+            bodyPath += ` L ${bonnetEndPx.x} ${bonnetEndPx.y}`;
+        } else {
+            bodyPath += ` Q ${splineHandleInPx.x} ${splineHandleInPx.y} ${splineAnchorPx.x} ${splineAnchorPx.y}`;
+            bodyPath += ` Q ${splineHandleOutPx.x} ${splineHandleOutPx.y} ${bonnetEndPx.x} ${bonnetEndPx.y}`;
+        }
+
+        bodyPath += ` L ${windowEndPx.x} ${windowEndPx.y}`;
+        bodyPath += ` L ${rooftopEndPx.x} ${rooftopEndPx.y}`;
+        bodyPath += ` L ${rearWindowEndPx.x} ${rearWindowEndPx.y}`;
+        bodyPath += ` L ${bumperEndPx.x} ${bumperEndPx.y}`;
+        bodyPath += ` L ${targetRearX} ${targetRearY}`;
+
+        const bodyProfilePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        bodyProfilePath.setAttribute("d", bodyPath);
+        bodyProfilePath.setAttribute("stroke", COLOR_BLUE);
+        bodyProfilePath.setAttribute("stroke-width", "2");
+        bodyProfilePath.setAttribute("fill", "none");
+        drawingGroup.appendChild(bodyProfilePath);
+
+        // Draw spline handles if applicable
+        if (state.bonnetSplineType !== 'hard') {
+            const handleLineIn = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            handleLineIn.setAttribute("x1", splineAnchorPx.x);
+            handleLineIn.setAttribute("y1", splineAnchorPx.y);
+            handleLineIn.setAttribute("x2", splineHandleInPx.x);
+            handleLineIn.setAttribute("y2", splineHandleInPx.y);
+            handleLineIn.setAttribute("stroke", "rgba(255,255,255,0.5)");
+            handleLineIn.setAttribute("stroke-width", "1");
+            drawingGroup.appendChild(handleLineIn);
+
+            const handleLineOut = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            handleLineOut.setAttribute("x1", splineAnchorPx.x);
+            handleLineOut.setAttribute("y1", splineAnchorPx.y);
+            handleLineOut.setAttribute("x2", splineHandleOutPx.x);
+            handleLineOut.setAttribute("y2", splineHandleOutPx.y);
+            handleLineOut.setAttribute("stroke", "rgba(255,255,255,0.5)");
+            handleLineOut.setAttribute("stroke-width", "1");
+            drawingGroup.appendChild(handleLineOut);
+
+            const handleDotIn = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            handleDotIn.setAttribute("cx", splineHandleInPx.x);
+            handleDotIn.setAttribute("cy", splineHandleInPx.y);
+            handleDotIn.setAttribute("fill", "#e2e8f0");
+            setSplineDotState(handleDotIn, false, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1);
+            handleDotIn.style.cursor = 'pointer';
+            handleDotIn.addEventListener('mouseenter', () => setSplineDotState(handleDotIn, true, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1));
+            handleDotIn.addEventListener('mouseleave', () => {
+                if (isDraggingSplineHandle !== 'in') {
+                    setSplineDotState(handleDotIn, false, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1);
+                }
+            });
+            handleDotIn.addEventListener('mousedown', (event) => {
+                startSplineHandleDrag('in', event, splineHandleInPx);
+                setSplineDotState(handleDotIn, true, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1);
+            });
+            drawingGroup.appendChild(handleDotIn);
+
+            const handleDotOut = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            handleDotOut.setAttribute("cx", splineHandleOutPx.x);
+            handleDotOut.setAttribute("cy", splineHandleOutPx.y);
+            handleDotOut.setAttribute("fill", "#e2e8f0");
+            setSplineDotState(handleDotOut, false, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1);
+            handleDotOut.style.cursor = 'pointer';
+            handleDotOut.addEventListener('mouseenter', () => setSplineDotState(handleDotOut, true, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1));
+            handleDotOut.addEventListener('mouseleave', () => {
+                if (isDraggingSplineHandle !== 'out') {
+                    setSplineDotState(handleDotOut, false, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1);
+                }
+            });
+            handleDotOut.addEventListener('mousedown', (event) => {
+                startSplineHandleDrag('out', event, splineHandleOutPx);
+                setSplineDotState(handleDotOut, true, SPLINE_HANDLE_RADIUS, SPLINE_HANDLE_RADIUS + 1);
+            });
+            drawingGroup.appendChild(handleDotOut);
+        }
+
+        const splineDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        splineDot.setAttribute("cx", splineAnchorPx.x);
+        splineDot.setAttribute("cy", splineAnchorPx.y);
+        splineDot.setAttribute("fill", "#ffffff");
+        setSplineDotState(splineDot, false, SPLINE_DOT_RADIUS, SPLINE_DOT_ACTIVE_RADIUS);
+        splineDot.style.cursor = 'pointer';
+        splineDot.addEventListener('mouseenter', () => setSplineDotState(splineDot, true, SPLINE_DOT_RADIUS, SPLINE_DOT_ACTIVE_RADIUS));
+        splineDot.addEventListener('mouseleave', () => {
+            if (!isDraggingSplinePoint) {
+                setSplineDotState(splineDot, false, SPLINE_DOT_RADIUS, SPLINE_DOT_ACTIVE_RADIUS);
+            }
+        });
+        splineDot.addEventListener('mousedown', (event) => {
+            const ctm = svg.getScreenCTM();
+            if (!ctm) return;
+            const pt = svg.createSVGPoint();
+            pt.x = event.clientX;
+            pt.y = event.clientY;
+            const svgP = pt.matrixTransform(ctm.inverse());
+            splinePointerDown = true;
+            splinePointerStartX = svgP.x;
+            splinePointerStartY = svgP.y;
+            splineDragOffsetX = svgP.x - splineAnchorPx.x;
+            splineDragOffsetY = svgP.y - splineAnchorPx.y;
+            splineDragMoved = false;
+            setSplineDotState(splineDot, true, SPLINE_DOT_RADIUS, SPLINE_DOT_ACTIVE_RADIUS);
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        splineDot.addEventListener('mouseup', (event) => {
+            splinePointerDown = false;
+            if (isDraggingSplinePoint || splineDragMoved) {
+                return;
+            }
+            event.stopPropagation();
+            if (splineMenuVisible) {
+                hideSplineMenu();
+            } else {
+                showSplineMenu(splineAnchorPx.x, splineAnchorPx.y);
+            }
+        });
+        drawingGroup.appendChild(splineDot);
 
         // Draw draggable dots for each point (rendered above lines)
         drawingGroup.appendChild(createDraggableDot(bonnetEndPx.x, bonnetEndPx.y, "bonnetEnd"));
@@ -685,6 +932,20 @@ document.addEventListener('DOMContentLoaded', () => {
         isDraggingAxle = position;
         axleDragOffsetX = svgCoords.x - axleX;
         setDotVisualState(centerElement, true);
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    function startSplineHandleDrag(handleType, event, handlePx) {
+        const ctm = svg.getScreenCTM();
+        if (!ctm) return;
+        const pt = svg.createSVGPoint();
+        pt.x = event.clientX;
+        pt.y = event.clientY;
+        const svgCoords = pt.matrixTransform(ctm.inverse());
+        isDraggingSplineHandle = handleType;
+        splineHandleDragOffsetX = svgCoords.x - handlePx.x;
+        splineHandleDragOffsetY = svgCoords.y - handlePx.y;
         event.preventDefault();
         event.stopPropagation();
     }
@@ -1259,9 +1520,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Drag Handling for Wheel Axles ---
     let isDraggingAxle = null; // 'front' | 'rear' | null
     let axleDragOffsetX = 0;
+    let splinePointerDown = false;
+    let splinePointerStartX = 0;
+    let splinePointerStartY = 0;
+    let isDraggingSplinePoint = false;
+    let splineDragOffsetX = 0;
+    let splineDragOffsetY = 0;
+    let splineDragMoved = false;
+    let isDraggingSplineHandle = null; // 'in' | 'out'
+    let splineHandleDragOffsetX = 0;
+    let splineHandleDragOffsetY = 0;
 
     window.addEventListener('mousemove', (e) => {
-        if (!isDraggingFrontBreak && !(isDraggingBodyPoint && currentDragPoint) && !isDraggingAxle) {
+        const shouldProcess =
+            isDraggingFrontBreak ||
+            (isDraggingBodyPoint && currentDragPoint) ||
+            isDraggingAxle ||
+            isDraggingSplinePoint ||
+            isDraggingSplineHandle ||
+            splinePointerDown;
+        if (!shouldProcess) {
             return;
         }
 
@@ -1272,11 +1550,32 @@ document.addEventListener('DOMContentLoaded', () => {
         svgPoint.y = e.clientY;
         const svgCoords = svgPoint.matrixTransform(ctm.inverse());
 
+        const dragThreshold = 2;
+        if (splinePointerDown && !isDraggingSplinePoint) {
+            const deltaX = svgCoords.x - splinePointerStartX;
+            const deltaY = svgCoords.y - splinePointerStartY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            if (distance > dragThreshold) {
+                isDraggingSplinePoint = true;
+                hideSplineMenu();
+            }
+        }
+
+        if (
+            !isDraggingFrontBreak &&
+            !(isDraggingBodyPoint && currentDragPoint) &&
+            !isDraggingAxle &&
+            !isDraggingSplinePoint &&
+            !isDraggingSplineHandle
+        ) {
+            return;
+        }
+
         const tireRadiusPx = (state.tireDiameter / 2) * SCALE;
         const wheelBasePx = state.wheelBase * SCALE;
         const frontWheelX = CENTER_X - (wheelBasePx / 2);
         const rearWheelX = CENTER_X + (wheelBasePx / 2);
-        const wheelY = GROUND_Y - tireRadiusPx;
+            const wheelY = GROUND_Y - tireRadiusPx;
         let needsRedraw = false;
         let redrawHandledByState = false;
 
@@ -1321,6 +1620,43 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        if (isDraggingSplinePoint) {
+            splineDragMoved = true;
+            const newAnchorX = svgCoords.x - splineDragOffsetX;
+            const newAnchorY = svgCoords.y - splineDragOffsetY;
+            state.bonnetSplineX = Math.round((frontWheelX - newAnchorX) / SCALE);
+            state.bonnetSplineY = Math.round((wheelY - newAnchorY) / SCALE);
+            if (splineMenuVisible) {
+                showSplineMenu(newAnchorX, newAnchorY);
+            }
+            needsRedraw = true;
+        }
+
+        if (isDraggingSplineHandle) {
+            const anchorPx = getSplineAnchorPx(frontWheelX, wheelY);
+            const newHandleX = svgCoords.x - splineHandleDragOffsetX;
+            const newHandleY = svgCoords.y - splineHandleDragOffsetY;
+            const vectorXmm = Math.round((anchorPx.x - newHandleX) / SCALE);
+            const vectorYmm = Math.round((anchorPx.y - newHandleY) / SCALE);
+
+            if (isDraggingSplineHandle === 'in') {
+                state.bonnetSplineHandleInX = vectorXmm;
+                state.bonnetSplineHandleInY = vectorYmm;
+                if (state.bonnetSplineType === 'symmetric') {
+                    state.bonnetSplineHandleOutX = -vectorXmm;
+                    state.bonnetSplineHandleOutY = -vectorYmm;
+                }
+            } else {
+                state.bonnetSplineHandleOutX = vectorXmm;
+                state.bonnetSplineHandleOutY = vectorYmm;
+                if (state.bonnetSplineType === 'symmetric') {
+                    state.bonnetSplineHandleInX = -vectorXmm;
+                    state.bonnetSplineHandleInY = -vectorYmm;
+                }
+            }
+            needsRedraw = true;
+        }
+
         // Handle wheel axle dragging (symmetric around CENTER_X)
         if (isDraggingAxle) {
             const minWheelBasePx = wheelBaseMinMM * SCALE;
@@ -1354,6 +1690,10 @@ document.addEventListener('DOMContentLoaded', () => {
         isDraggingBodyPoint = false;
         currentDragPoint = null;
         isDraggingAxle = null;
+        splinePointerDown = false;
+        isDraggingSplinePoint = false;
+        splineDragMoved = false;
+        isDraggingSplineHandle = null;
         draw(); // Redraw to reset cursor/hover state if needed
     });
 
