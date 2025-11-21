@@ -14,6 +14,75 @@ document.addEventListener('DOMContentLoaded', () => {
     const rotationSlider = document.getElementById('imageRotate');
     const imageToolbar = document.querySelector('.image-toolbar');
 
+    const pointTooltip = document.createElement('div');
+    pointTooltip.className = 'point-tooltip';
+    canvasArea.appendChild(pointTooltip);
+
+    const COLOR_FRONT_POINT = '#10b981';
+    const COLOR_REAR_POINT = '#f97316';
+    const COLOR_BLUE = '#38bdf8';
+    const DOT_RADIUS = 3.5;
+    const DOT_RADIUS_ACTIVE = 5;
+
+    function setDotVisualState(element, isActive) {
+        if (!element) return;
+        element.setAttribute('r', (isActive ? DOT_RADIUS_ACTIVE : DOT_RADIUS).toString());
+        if (isActive) {
+            element.setAttribute('stroke', 'white');
+            element.setAttribute('stroke-width', '1.5');
+        } else {
+            element.setAttribute('stroke', 'none');
+            element.removeAttribute('stroke-width');
+        }
+    }
+
+    const BODY_POINT_CONFIG = {
+        frontFaceBreak: {
+            xKey: 'frontFaceBreakX',
+            yKey: 'frontFaceBreakY',
+            reference: 'front',
+            label: 'Front Face Break',
+            color: COLOR_FRONT_POINT
+        },
+        bonnetEnd: {
+            xKey: 'bonnetEndX',
+            yKey: 'bonnetEndY',
+            reference: 'front',
+            label: 'Bonnet End',
+            color: COLOR_FRONT_POINT
+        },
+        windowEnd: {
+            xKey: 'windowEndX',
+            yKey: 'windowEndY',
+            reference: 'front',
+            label: 'Window End',
+            color: COLOR_FRONT_POINT
+        },
+        rooftopEnd: {
+            xKey: 'rooftopEndX',
+            yKey: 'rooftopEndY',
+            reference: 'rear',
+            label: 'Rooftop End',
+            color: COLOR_REAR_POINT
+        },
+        rearWindowEnd: {
+            xKey: 'rearWindowEndX',
+            yKey: 'rearWindowEndY',
+            reference: 'rear',
+            label: 'Rear Window End',
+            color: COLOR_REAR_POINT
+        },
+        bumperEnd: {
+            xKey: 'bumperEndX',
+            yKey: 'bumperEndY',
+            reference: 'rear',
+            label: 'Bumper End',
+            color: COLOR_REAR_POINT
+        }
+    };
+
+    let tooltipPointKey = null;
+
 
     // Inputs
     const tireDiameterInput = document.getElementById('tireDiameter');
@@ -33,6 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const handDistanceXInput = document.getElementById('handDistanceX');
     const mannequinHeightInput = document.getElementById('mannequinHeight');
     const showMannequinInput = document.getElementById('showMannequin');
+
+    const wheelBaseMinMM = parseInt(wheelBaseInput.min, 10);
+    const wheelBaseMaxMM = parseInt(wheelBaseInput.max, 10);
 
     // Value Displays
     const tireDiameterVal = document.getElementById('tireDiameterVal');
@@ -62,18 +134,18 @@ document.addEventListener('DOMContentLoaded', () => {
         rearOverhang: parseInt(rearOverhangInput.value),
         frontApproachAngle: parseInt(frontApproachAngleInput.value),
         rearDepartureAngle: parseInt(rearDepartureAngleInput.value),
-        frontFaceBreakX: 850, // Default value since input is removed
-        frontFaceBreakY: 200, // Default value since input is removed
-        bonnetEndX: 700,
-        bonnetEndY: 400,
-        windowEndX: 600,
-        windowEndY: 700,
-        rooftopEndX: -500,
-        rooftopEndY: 700,
-        rearWindowEndX: -700,
-        rearWindowEndY: 400,
-        bumperEndX: -900,
-        bumperEndY: 200,
+        frontFaceBreakX: 775,
+        frontFaceBreakY: 525,
+        bonnetEndX: -365,
+        bonnetEndY: 660,
+        windowEndX: -1445,
+        windowEndY: 1125,
+        rooftopEndX: -195,
+        rooftopEndY: 1130,
+        rearWindowEndX: -500,
+        rearWindowEndY: 775,
+        bumperEndX: -890,
+        bumperEndY: 535,
         hPointHeight: parseInt(hPointHeightInput.value),
         hPointX: parseInt(hPointXInput.value),
         hipPedalDistance: parseInt(hipPedalDistanceInput.value),
@@ -119,6 +191,65 @@ document.addEventListener('DOMContentLoaded', () => {
         bigLeg: { x: 331.38, y: 61.91 },
         smallLeg: { x: 356.26, y: 27.31 }
     };
+
+    function getReferenceX(reference, frontWheelX, rearWheelX) {
+        return reference === 'rear' ? rearWheelX : frontWheelX;
+    }
+
+    function getPointPosition(pointKey, frontWheelX, rearWheelX, wheelY) {
+        const config = BODY_POINT_CONFIG[pointKey];
+        if (!config) {
+            return { x: 0, y: 0 };
+        }
+        const referenceX = getReferenceX(config.reference, frontWheelX, rearWheelX);
+        return {
+            x: referenceX - (state[config.xKey] * SCALE),
+            y: wheelY - (state[config.yKey] * SCALE)
+        };
+    }
+
+    function formatTooltipText(pointKey) {
+        const config = BODY_POINT_CONFIG[pointKey];
+        if (!config) return '';
+        const originLabel = config.reference === 'rear' ? 'Rear axle' : 'Front axle';
+        const xVal = state[config.xKey];
+        const yVal = state[config.yKey];
+        return `${config.label} • ${originLabel} • X: ${xVal}mm • Y: ${yVal}mm`;
+    }
+
+    function positionTooltipAt(svgX, svgY) {
+        if (!svg) return;
+        const pt = svg.createSVGPoint();
+        pt.x = svgX;
+        pt.y = svgY;
+        const ctm = svg.getScreenCTM();
+        if (!ctm) return;
+        const screenPoint = pt.matrixTransform(ctm);
+        const canvasRect = canvasArea.getBoundingClientRect();
+        pointTooltip.style.left = `${screenPoint.x - canvasRect.left}px`;
+        pointTooltip.style.top = `${screenPoint.y - canvasRect.top - 12}px`;
+    }
+
+    function updatePointTooltip(pointKey, svgX, svgY) {
+        if (!pointKey) return;
+        pointTooltip.textContent = formatTooltipText(pointKey);
+        positionTooltipAt(svgX, svgY);
+    }
+
+    function showPointTooltip(pointKey, svgX, svgY) {
+        if (!pointKey) return;
+        tooltipPointKey = pointKey;
+        updatePointTooltip(pointKey, svgX, svgY);
+        pointTooltip.style.display = 'block';
+    }
+
+    function hidePointTooltip(pointKey) {
+        if (pointKey && tooltipPointKey && tooltipPointKey !== pointKey) {
+            return;
+        }
+        tooltipPointKey = null;
+        pointTooltip.style.display = 'none';
+    }
 
 
     function updateState() {
@@ -318,18 +449,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Draw Front Face Line ---
         // Connects the front overhang anchor (targetFrontX, targetFrontY)
         // to the Front Face Break Point
-        const frontFaceBreakXPx = state.frontFaceBreakX * SCALE;
-        const frontFaceBreakYPx = state.frontFaceBreakY * SCALE;
-
-        const breakPointX = frontWheelX - frontFaceBreakXPx;
-        const breakPointY = wheelY - frontFaceBreakYPx;
+        const frontFaceBreakPos = getPointPosition('frontFaceBreak', frontWheelX, rearWheelX, wheelY);
+        const breakPointX = frontFaceBreakPos.x;
+        const breakPointY = frontFaceBreakPos.y;
 
         const frontFaceLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
         frontFaceLine.setAttribute("x1", targetFrontX);
         frontFaceLine.setAttribute("y1", targetFrontY);
         frontFaceLine.setAttribute("x2", breakPointX);
         frontFaceLine.setAttribute("y2", breakPointY);
-        frontFaceLine.setAttribute("stroke", "#38bdf8");
+        frontFaceLine.setAttribute("stroke", COLOR_BLUE);
         frontFaceLine.setAttribute("stroke-width", "2");
         drawingGroup.appendChild(frontFaceLine);
 
@@ -337,31 +466,37 @@ document.addEventListener('DOMContentLoaded', () => {
         const anchorDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         anchorDot.setAttribute("cx", breakPointX);
         anchorDot.setAttribute("cy", breakPointY);
-        anchorDot.setAttribute("r", "4");
-        anchorDot.setAttribute("fill", "#38bdf8");
-        anchorDot.setAttribute("stroke", "white");
-        anchorDot.setAttribute("stroke-width", "2");
+        anchorDot.setAttribute("r", DOT_RADIUS.toString());
+        anchorDot.setAttribute("fill", BODY_POINT_CONFIG.frontFaceBreak.color);
+        anchorDot.setAttribute("stroke", "none");
         anchorDot.setAttribute("class", "interactive-anchor");
         anchorDot.style.cursor = "pointer";
         anchorDot.style.transition = "r 0.2s ease";
 
 
         // Hover effect via JS events since we're redrawing constantly
-        anchorDot.addEventListener('mouseenter', () => anchorDot.setAttribute("r", "6"));
+        anchorDot.addEventListener('mouseenter', () => {
+            setDotVisualState(anchorDot, true);
+            showPointTooltip('frontFaceBreak', parseFloat(anchorDot.getAttribute('cx')), parseFloat(anchorDot.getAttribute('cy')));
+        });
         anchorDot.addEventListener('mouseleave', () => {
-            if (!isDraggingFrontBreak) anchorDot.setAttribute("r", "4");
+            if (!isDraggingFrontBreak) {
+                setDotVisualState(anchorDot, false);
+                hidePointTooltip('frontFaceBreak');
+            }
         });
 
         // Drag start - calculate offset from current state, not closure
         anchorDot.addEventListener('mousedown', (e) => {
             // Get current dot position from state (not from closure variables)
-            const tireRadiusPx = state.tireDiameter / 2 * SCALE;
-            const wheelY = GROUND_Y - tireRadiusPx;
-            const frontWheelX = 200;
-            const frontFaceBreakXPx = state.frontFaceBreakX * SCALE;
-            const frontFaceBreakYPx = state.frontFaceBreakY * SCALE;
-            const currentBreakPointX = frontWheelX - frontFaceBreakXPx;
-            const currentBreakPointY = wheelY - frontFaceBreakYPx;
+            const tireRadiusPxCurrent = (state.tireDiameter / 2) * SCALE;
+            const wheelBasePxCurrent = state.wheelBase * SCALE;
+            const localFrontWheelX = CENTER_X - (wheelBasePxCurrent / 2);
+            const localRearWheelX = CENTER_X + (wheelBasePxCurrent / 2);
+            const localWheelY = GROUND_Y - tireRadiusPxCurrent;
+            const referenceX = getReferenceX(BODY_POINT_CONFIG.frontFaceBreak.reference, localFrontWheelX, localRearWheelX);
+            const currentBreakPointX = referenceX - (state.frontFaceBreakX * SCALE);
+            const currentBreakPointY = localWheelY - (state.frontFaceBreakY * SCALE);
 
             const svgEl = document.querySelector("svg");
             const pt = svgEl.createSVGPoint();
@@ -372,6 +507,8 @@ document.addEventListener('DOMContentLoaded', () => {
             isDraggingFrontBreak = true;
             dragOffsetX = svgP.x - currentBreakPointX;
             dragOffsetY = svgP.y - currentBreakPointY;
+            setDotVisualState(anchorDot, true);
+            showPointTooltip('frontFaceBreak', currentBreakPointX, currentBreakPointY);
             e.preventDefault();
             e.stopPropagation();
         });
@@ -384,17 +521,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
             dot.setAttribute("cx", x);
             dot.setAttribute("cy", y);
-            dot.setAttribute("r", "4");
-            dot.setAttribute("fill", "#10b981"); // Green for body points
-            dot.setAttribute("stroke", "white");
-            dot.setAttribute("stroke-width", "2");
+            dot.setAttribute("r", DOT_RADIUS.toString());
+            const config = BODY_POINT_CONFIG[pointName];
+            dot.setAttribute("fill", config?.color || COLOR_FRONT_POINT);
+            dot.setAttribute("stroke", "none");
             dot.setAttribute("data-point", pointName);
             dot.style.cursor = "pointer";
 
-            dot.addEventListener('mouseenter', () => dot.setAttribute("r", "6"));
+            dot.addEventListener('mouseenter', () => {
+                setDotVisualState(dot, true);
+                showPointTooltip(pointName, parseFloat(dot.getAttribute('cx')), parseFloat(dot.getAttribute('cy')));
+            });
             dot.addEventListener('mouseleave', () => {
                 if (!isDraggingBodyPoint || currentDragPoint !== pointName) {
-                    dot.setAttribute("r", "4");
+                    setDotVisualState(dot, false);
+                    hidePointTooltip(pointName);
                 }
             });
 
@@ -403,33 +544,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentDragPoint = pointName;
 
                 // Recalculate current dot position from state (not from closure)
-                const tireRadiusPx = state.tireDiameter / 2 * SCALE;
-                const wheelY = GROUND_Y - tireRadiusPx;
-                const frontWheelX = 200;
+                const tireRadiusPxCurrent = (state.tireDiameter / 2) * SCALE;
+                const wheelBasePxCurrent = state.wheelBase * SCALE;
+                const localFrontWheelX = CENTER_X - (wheelBasePxCurrent / 2);
+                const localRearWheelX = CENTER_X + (wheelBasePxCurrent / 2);
+                const localWheelY = GROUND_Y - tireRadiusPxCurrent;
+                const config = BODY_POINT_CONFIG[pointName];
+                const referenceX = getReferenceX(config.reference, localFrontWheelX, localRearWheelX);
 
-                let currentDotX, currentDotY;
-                switch (pointName) {
-                    case 'bonnetEnd':
-                        currentDotX = frontWheelX - state.bonnetEndX * SCALE;
-                        currentDotY = wheelY - state.bonnetEndY * SCALE;
-                        break;
-                    case 'windowEnd':
-                        currentDotX = frontWheelX - state.windowEndX * SCALE;
-                        currentDotY = wheelY - state.windowEndY * SCALE;
-                        break;
-                    case 'rooftopEnd':
-                        currentDotX = frontWheelX - state.rooftopEndX * SCALE;
-                        currentDotY = wheelY - state.rooftopEndY * SCALE;
-                        break;
-                    case 'rearWindowEnd':
-                        currentDotX = frontWheelX - state.rearWindowEndX * SCALE;
-                        currentDotY = wheelY - state.rearWindowEndY * SCALE;
-                        break;
-                    case 'bumperEnd':
-                        currentDotX = frontWheelX - state.bumperEndX * SCALE;
-                        currentDotY = wheelY - state.bumperEndY * SCALE;
-                        break;
-                }
+                const currentDotX = referenceX - (state[config.xKey] * SCALE);
+                const currentDotY = localWheelY - (state[config.yKey] * SCALE);
 
                 const svgEl = document.querySelector("svg");
                 const pt = svgEl.createSVGPoint();
@@ -439,6 +563,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 bodyDragOffsetX = svgP.x - currentDotX;
                 bodyDragOffsetY = svgP.y - currentDotY;
+                setDotVisualState(dot, true);
+                showPointTooltip(pointName, currentDotX, currentDotY);
                 e.preventDefault();
                 e.stopPropagation();
             });
@@ -446,35 +572,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return dot;
         };
 
-        // Calculate positions for each body point (relative to front axle)
-        const bonnetEndPx = {
-            x: frontWheelX - state.bonnetEndX * SCALE,
-            y: wheelY - state.bonnetEndY * SCALE
-        };
-        const windowEndPx = {
-            x: frontWheelX - state.windowEndX * SCALE,
-            y: wheelY - state.windowEndY * SCALE
-        };
-        const rooftopEndPx = {
-            x: frontWheelX - state.rooftopEndX * SCALE,
-            y: wheelY - state.rooftopEndY * SCALE
-        };
-        const rearWindowEndPx = {
-            x: frontWheelX - state.rearWindowEndX * SCALE,
-            y: wheelY - state.rearWindowEndY * SCALE
-        };
-        const bumperEndPx = {
-            x: frontWheelX - state.bumperEndX * SCALE,
-            y: wheelY - state.bumperEndY * SCALE
-        };
-
-        // Draw draggable dots for each point
-        drawingGroup.appendChild(createDraggableDot(bonnetEndPx.x, bonnetEndPx.y, "bonnetEnd"));
-        drawingGroup.appendChild(createDraggableDot(windowEndPx.x, windowEndPx.y, "windowEnd"));
-        drawingGroup.appendChild(createDraggableDot(rooftopEndPx.x, rooftopEndPx.y, "rooftopEnd"));
-        drawingGroup.appendChild(createDraggableDot(rearWindowEndPx.x, rearWindowEndPx.y, "rearWindowEnd"));
-        drawingGroup.appendChild(createDraggableDot(bumperEndPx.x, bumperEndPx.y, "bumperEnd"));
-
+        // Calculate positions for each body point using their respective axles
+        const bonnetEndPx = getPointPosition('bonnetEnd', frontWheelX, rearWheelX, wheelY);
+        const windowEndPx = getPointPosition('windowEnd', frontWheelX, rearWheelX, wheelY);
+        const rooftopEndPx = getPointPosition('rooftopEnd', frontWheelX, rearWheelX, wheelY);
+        const rearWindowEndPx = getPointPosition('rearWindowEnd', frontWheelX, rearWheelX, wheelY);
+        const bumperEndPx = getPointPosition('bumperEnd', frontWheelX, rearWheelX, wheelY);
 
         // Rear Overhang Anchor
         // Find point on rear tangent line where x = rearWheelX + rearOverhang
@@ -511,15 +614,22 @@ document.addEventListener('DOMContentLoaded', () => {
             `${targetRearX},${targetRearY}` // Connect to rear overhang anchor
         ].join(" ");
         bodyProfileLine.setAttribute("points", points);
-        bodyProfileLine.setAttribute("stroke", "#10b981");
+        bodyProfileLine.setAttribute("stroke", COLOR_BLUE);
         bodyProfileLine.setAttribute("stroke-width", "2");
         bodyProfileLine.setAttribute("fill", "none");
         drawingGroup.appendChild(bodyProfileLine);
 
+        // Draw draggable dots for each point (rendered above lines)
+        drawingGroup.appendChild(createDraggableDot(bonnetEndPx.x, bonnetEndPx.y, "bonnetEnd"));
+        drawingGroup.appendChild(createDraggableDot(windowEndPx.x, windowEndPx.y, "windowEnd"));
+        drawingGroup.appendChild(createDraggableDot(rooftopEndPx.x, rooftopEndPx.y, "rooftopEnd"));
+        drawingGroup.appendChild(createDraggableDot(rearWindowEndPx.x, rearWindowEndPx.y, "rearWindowEnd"));
+        drawingGroup.appendChild(createDraggableDot(bumperEndPx.x, bumperEndPx.y, "bumperEnd"));
+
 
         // --- Draw Tires ---
-        drawTire(rearWheelX, wheelY, tireRadiusPx);
-        drawTire(frontWheelX, wheelY, tireRadiusPx);
+        drawTire(rearWheelX, wheelY, tireRadiusPx, 'rear');
+        drawTire(frontWheelX, wheelY, tireRadiusPx, 'front');
 
         // Draw Ground Line (reference)
         const groundLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -532,7 +642,7 @@ document.addEventListener('DOMContentLoaded', () => {
         drawingGroup.appendChild(groundLine);
     }
 
-    function drawTire(cx, cy, r) {
+    function drawTire(cx, cy, r, position = 'front') {
         const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
         // Tire Circle (Semi-transparent fill)
@@ -548,11 +658,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const center = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         center.setAttribute("cx", cx);
         center.setAttribute("cy", cy);
-        center.setAttribute("r", 3);
-        center.setAttribute("class", "wheel-center");
+        center.setAttribute("r", DOT_RADIUS.toString());
+        center.setAttribute("fill", position === 'front' ? COLOR_FRONT_POINT : COLOR_REAR_POINT);
+        center.setAttribute("stroke", "none");
+        center.style.cursor = 'ew-resize';
+        center.addEventListener('mousedown', (event) => startAxleDrag(position, event, cx, center));
+        center.addEventListener('mouseenter', () => setDotVisualState(center, true));
+        center.addEventListener('mouseleave', () => {
+            if (isDraggingAxle !== position) {
+                setDotVisualState(center, false);
+            }
+        });
+        setDotVisualState(center, false);
         group.appendChild(center);
 
         drawingGroup.appendChild(group);
+    }
+
+    function startAxleDrag(position, event, axleX, centerElement) {
+        const ctm = svg.getScreenCTM();
+        if (!ctm) return;
+        const pt = svg.createSVGPoint();
+        pt.x = event.clientX;
+        pt.y = event.clientY;
+        const svgCoords = pt.matrixTransform(ctm.inverse());
+        isDraggingAxle = position;
+        axleDragOffsetX = svgCoords.x - axleX;
+        setDotVisualState(centerElement, true);
+        event.preventDefault();
+        event.stopPropagation();
     }
 
 
@@ -1122,28 +1256,38 @@ document.addEventListener('DOMContentLoaded', () => {
     let bodyDragOffsetX = 0;
     let bodyDragOffsetY = 0;
 
+    // --- Drag Handling for Wheel Axles ---
+    let isDraggingAxle = null; // 'front' | 'rear' | null
+    let axleDragOffsetX = 0;
+
     window.addEventListener('mousemove', (e) => {
+        if (!isDraggingFrontBreak && !(isDraggingBodyPoint && currentDragPoint) && !isDraggingAxle) {
+            return;
+        }
+
+        const ctm = svg.getScreenCTM();
+        if (!ctm) return;
+        const svgPoint = svg.createSVGPoint();
+        svgPoint.x = e.clientX;
+        svgPoint.y = e.clientY;
+        const svgCoords = svgPoint.matrixTransform(ctm.inverse());
+
+        const tireRadiusPx = (state.tireDiameter / 2) * SCALE;
+        const wheelBasePx = state.wheelBase * SCALE;
+        const frontWheelX = CENTER_X - (wheelBasePx / 2);
+        const rearWheelX = CENTER_X + (wheelBasePx / 2);
+        const wheelY = GROUND_Y - tireRadiusPx;
+        let needsRedraw = false;
+        let redrawHandledByState = false;
+
         // Handle front face break dragging
         if (isDraggingFrontBreak) {
-            const svgEl = document.querySelector("svg");
-            const pt = svgEl.createSVGPoint();
-            pt.x = e.clientX;
-            pt.y = e.clientY;
-            const svgP = pt.matrixTransform(svgEl.getScreenCTM().inverse());
-
-            // Calculate new Front Face Break X/Y relative to Front Axle
-            const tireRadiusPx = state.tireDiameter / 2 * SCALE;
-            const wheelY = GROUND_Y - tireRadiusPx;
-            const frontWheelX = 200;
-
-            // Apply drag offset to prevent jump
-            const newBreakPointX = svgP.x - dragOffsetX;
-            const newBreakPointY = svgP.y - dragOffsetY;
-
-            const newBreakXPx = frontWheelX - newBreakPointX;
+            const newBreakPointX = svgCoords.x - dragOffsetX;
+            const newBreakPointY = svgCoords.y - dragOffsetY;
+            const referenceX = getReferenceX(BODY_POINT_CONFIG.frontFaceBreak.reference, frontWheelX, rearWheelX);
+            const newBreakXPx = referenceX - newBreakPointX;
             const newBreakYPx = wheelY - newBreakPointY;
 
-            // Update State (convert pixels back to mm)
             state.frontFaceBreakX = Math.round(newBreakXPx / SCALE);
             state.frontFaceBreakY = Math.round(newBreakYPx / SCALE);
 
@@ -1151,52 +1295,56 @@ document.addEventListener('DOMContentLoaded', () => {
             state.frontFaceBreakX = Math.max(400, Math.min(1500, state.frontFaceBreakX));
             state.frontFaceBreakY = Math.max(0, Math.min(800, state.frontFaceBreakY));
 
-            draw();
+            if (tooltipPointKey === 'frontFaceBreak') {
+                updatePointTooltip('frontFaceBreak', newBreakPointX, newBreakPointY);
+            }
+            needsRedraw = true;
         }
 
         // Handle body profile points dragging
         if (isDraggingBodyPoint && currentDragPoint) {
-            const svgEl = document.querySelector("svg");
-            const pt = svgEl.createSVGPoint();
-            pt.x = e.clientX;
-            pt.y = e.clientY;
-            const svgP = pt.matrixTransform(svgEl.getScreenCTM().inverse());
+            const config = BODY_POINT_CONFIG[currentDragPoint];
+            if (config) {
+                const referenceX = getReferenceX(config.reference, frontWheelX, rearWheelX);
+                const newPointX = svgCoords.x - bodyDragOffsetX;
+                const newPointY = svgCoords.y - bodyDragOffsetY;
+                const newXPx = referenceX - newPointX;
+                const newYPx = wheelY - newPointY;
 
-            const tireRadiusPx = state.tireDiameter / 2 * SCALE;
-            const wheelY = GROUND_Y - tireRadiusPx;
-            const frontWheelX = 200;
+                state[config.xKey] = Math.round(newXPx / SCALE);
+                state[config.yKey] = Math.round(newYPx / SCALE);
 
-            // Apply drag offset
-            const newPointX = svgP.x - bodyDragOffsetX;
-            const newPointY = svgP.y - bodyDragOffsetY;
+                if (tooltipPointKey === currentDragPoint) {
+                    updatePointTooltip(currentDragPoint, newPointX, newPointY);
+                }
+                needsRedraw = true;
+            }
+        }
 
-            const newXPx = frontWheelX - newPointX;
-            const newYPx = wheelY - newPointY;
+        // Handle wheel axle dragging (symmetric around CENTER_X)
+        if (isDraggingAxle) {
+            const minWheelBasePx = wheelBaseMinMM * SCALE;
+            const maxWheelBasePx = wheelBaseMaxMM * SCALE;
+            const targetX = svgCoords.x - axleDragOffsetX;
+            let desiredWheelBasePx;
 
-            // Update the corresponding state property
-            switch (currentDragPoint) {
-                case 'bonnetEnd':
-                    state.bonnetEndX = Math.round(newXPx / SCALE);
-                    state.bonnetEndY = Math.round(newYPx / SCALE);
-                    break;
-                case 'windowEnd':
-                    state.windowEndX = Math.round(newXPx / SCALE);
-                    state.windowEndY = Math.round(newYPx / SCALE);
-                    break;
-                case 'rooftopEnd':
-                    state.rooftopEndX = Math.round(newXPx / SCALE);
-                    state.rooftopEndY = Math.round(newYPx / SCALE);
-                    break;
-                case 'rearWindowEnd':
-                    state.rearWindowEndX = Math.round(newXPx / SCALE);
-                    state.rearWindowEndY = Math.round(newYPx / SCALE);
-                    break;
-                case 'bumperEnd':
-                    state.bumperEndX = Math.round(newXPx / SCALE);
-                    state.bumperEndY = Math.round(newYPx / SCALE);
-                    break;
+            if (isDraggingAxle === 'front') {
+                desiredWheelBasePx = (CENTER_X - targetX) * 2;
+            } else {
+                desiredWheelBasePx = (targetX - CENTER_X) * 2;
             }
 
+            desiredWheelBasePx = Math.max(minWheelBasePx, Math.min(maxWheelBasePx, desiredWheelBasePx));
+            const newWheelBaseMm = Math.round(desiredWheelBasePx / SCALE);
+
+            if (newWheelBaseMm !== state.wheelBase) {
+                wheelBaseInput.value = newWheelBaseMm;
+                updateState();
+                redrawHandledByState = true;
+            }
+        }
+
+        if (!redrawHandledByState && needsRedraw) {
             draw();
         }
     });
@@ -1205,6 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isDraggingFrontBreak = false;
         isDraggingBodyPoint = false;
         currentDragPoint = null;
+        isDraggingAxle = null;
         draw(); // Redraw to reset cursor/hover state if needed
     });
 

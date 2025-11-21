@@ -318,6 +318,7 @@ svg {
 /* Custom Range Slider Styling */
 input[type=range] {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     background: transparent;
 }
@@ -538,5 +539,22 @@ input[type=range]::-moz-range-thumb {
     background-color: #04ff00;
     width: 21.8px;
     height: 21.8px;
+    display: none;
+}
+
+.point-tooltip {
+    position: absolute;
+    background: rgba(15, 23, 42, 0.92);
+    color: var(--text-primary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.35rem;
+    font-size: 0.75rem;
+    font-family: 'Roboto Mono', monospace;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    pointer-events: none;
+    transform: translate(-50%, -100%);
+    margin-bottom: 8px;
+    white-space: nowrap;
+    z-index: 5;
     display: none;
 }
