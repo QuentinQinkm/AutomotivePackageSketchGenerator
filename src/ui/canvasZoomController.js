@@ -2,13 +2,20 @@ export class CanvasZoomController {
     constructor({
         canvasArea,
         svgElement,
-        overlayLayer,
+        overlayLayer = null,
+        overlayLayers = [],
         minZoom = 1,
         maxZoom = 5
     }) {
         this.canvasArea = canvasArea;
         this.svgElement = svgElement;
-        this.overlayLayer = overlayLayer;
+        this.overlayLayers = [];
+        if (overlayLayer) {
+            this.overlayLayers.push(overlayLayer);
+        }
+        if (Array.isArray(overlayLayers) && overlayLayers.length) {
+            this.overlayLayers.push(...overlayLayers.filter(Boolean));
+        }
         const viewBoxAttr = svgElement.getAttribute('viewBox') || '0 0 800 400';
         const [, , boxWidth, boxHeight] = viewBoxAttr.split(' ').map(Number);
         this.baseWidth = boxWidth || 800;
@@ -132,10 +139,10 @@ export class CanvasZoomController {
         const translateX = letterboxOffsetX - (this.panX * renderScale * this.zoom);
         const translateY = letterboxOffsetY - (this.panY * renderScale * this.zoom);
 
-        if (this.overlayLayer) {
-            this.overlayLayer.style.transformOrigin = '0 0';
-            this.overlayLayer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${this.zoom})`;
-        }
+        this.overlayLayers.forEach((layer) => {
+            layer.style.transformOrigin = '0 0';
+            layer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${this.zoom})`;
+        });
 
         const isZoomed = this.zoom > this.minZoom + 0.001;
         this.canvasArea.classList.toggle('is-zoomed', isZoomed);
@@ -171,9 +178,9 @@ export class CanvasZoomController {
         delete this.canvasArea.dataset.zoomScale;
         delete this.canvasArea.dataset.zoomOffsetX;
         delete this.canvasArea.dataset.zoomOffsetY;
-        if (this.overlayLayer) {
-            this.overlayLayer.style.transform = '';
-        }
+        this.overlayLayers.forEach((layer) => {
+            layer.style.transform = '';
+        });
         this.svgElement.setAttribute('viewBox', `0 0 ${this.baseWidth} ${this.baseHeight}`);
     }
 }

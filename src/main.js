@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const drawingGroup = document.getElementById('drawingGroup');
     const canvasArea = document.getElementById('canvasArea');
     const canvasContent = document.getElementById('canvasContent');
+    const imageOverlayWrapper = document.getElementById('imageOverlayWrapper');
 
     const inputs = {
         tireDiameter: document.getElementById('tireDiameter'),
@@ -79,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const zoomController = new CanvasZoomController({
         canvasArea,
         svgElement: svg,
-        overlayLayer: canvasContent
+        overlayLayers: [canvasContent, imageOverlayWrapper]
     });
 
     new ImageOverlayManager({
@@ -93,7 +94,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         deleteImageBtn: document.getElementById('deleteImageBtn'),
         imageUploadInput: document.getElementById('imageUploadInput'),
         flipImageBtn: document.getElementById('flipImageBtn'),
-        stateManager
+        stateManager,
+        layerController
     });
 
     const render = () => {

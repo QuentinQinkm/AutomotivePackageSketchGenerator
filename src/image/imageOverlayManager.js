@@ -12,7 +12,8 @@ export class ImageOverlayManager {
         deleteImageBtn,
         imageUploadInput,
         flipImageBtn,
-        stateManager
+        stateManager,
+        layerController = null
     }) {
         this.canvasArea = canvasArea;
         this.imageFrame = imageFrame;
@@ -25,6 +26,7 @@ export class ImageOverlayManager {
         this.imageUploadInput = imageUploadInput;
         this.flipImageBtn = flipImageBtn;
         this.stateManager = stateManager;
+        this.layerController = layerController;
 
         this.hasImageOverlay = false;
         this.imageFlipped = false;
@@ -34,6 +36,9 @@ export class ImageOverlayManager {
 
         this.#bindEvents();
         this.#updateImageEditingState();
+        if (this.layerController) {
+            this.layerController.onChange(() => this.#updateImageEditingState());
+        }
 
         // Subscribe to state changes for opacity and rotation
         this.stateManager.subscribe(state => {
@@ -105,18 +110,20 @@ export class ImageOverlayManager {
     }
 
     #updateImageEditingState() {
+        const imageLayerActive = this.#isImageLayerActive();
+        const canEditImage = this.hasImageOverlay && imageLayerActive;
+
         // Toggle between Upload and Edit states
         if (this.hasImageOverlay) {
             this.uploadState.classList.add('hidden');
             this.editState.classList.remove('hidden');
-            this.imageFrame.classList.add('editing'); // Always editing if loaded? Or maybe just selectable?
         } else {
             this.uploadState.classList.remove('hidden');
             this.editState.classList.add('hidden');
-            this.imageFrame.classList.remove('editing');
         }
 
-        this.canvasArea.classList.toggle('editing-image', this.hasImageOverlay);
+        this.imageFrame.classList.toggle('editing', canEditImage);
+        this.canvasArea.classList.toggle('editing-image', canEditImage);
     }
 
     #handleImageFile(file) {
@@ -255,6 +262,10 @@ export class ImageOverlayManager {
             x: (relX - zoomOffsetX) / zoomScale,
             y: (relY - zoomOffsetY) / zoomScale
         };
+    }
+
+    #isImageLayerActive() {
+        return this.layerController ? this.layerController.isActive('image') : true;
     }
 }
 
