@@ -5,6 +5,7 @@ import { StateManager } from './state/stateManager.js';
 import { LayerController } from './ui/layerController.js';
 import { CanvasZoomController } from './ui/canvasZoomController.js';
 import { loadInlineSvgs } from './ui/inlineSvgLoader.js';
+import { SmartAdjuster } from './ui/smartAdjuster.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const svg = document.getElementById('carCanvas');
@@ -86,14 +87,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         imageFrame: document.getElementById('imageFrame'),
         overlayImage: document.getElementById('overlayImage'),
         resizeHandle: document.getElementById('resizeHandle'),
-        toggleImageButton: document.getElementById('toggleImageEdit'),
         imageControls: document.getElementById('imageControls'),
-        imageToolbar: document.querySelector('.image-toolbar'),
-        deleteImageBtn: document.getElementById('deleteImage'),
-        opacitySlider: document.getElementById('imageOpacity'),
-        imageUploadInput: document.getElementById('imageUpload'),
-        flipImageBtn: document.getElementById('flipImage'),
-        rotationSlider: document.getElementById('imageRotate')
+        uploadState: document.getElementById('imageUploadState'),
+        editState: document.getElementById('imageEditState'),
+        deleteImageBtn: document.getElementById('deleteImageBtn'),
+        imageUploadInput: document.getElementById('imageUploadInput'),
+        flipImageBtn: document.getElementById('flipImageBtn'),
+        stateManager
     });
 
     const render = () => {
@@ -101,8 +101,105 @@ document.addEventListener('DOMContentLoaded', async () => {
         humanFigureRenderer.update();
     };
 
+    // Initialize Smart Adjusters
+    const adjusters = document.querySelectorAll('.smart-adjuster');
+    adjusters.forEach(el => {
+        new SmartAdjuster(el, stateManager);
+    });
+
+    // Handle Smart Toggle
+    const showMannequinToggle = document.getElementById('showMannequinToggle');
+    if (showMannequinToggle) {
+        const toggleValue = showMannequinToggle.querySelector('.toggle-value');
+
+        showMannequinToggle.addEventListener('click', () => {
+            const currentState = stateManager.state.showMannequin;
+            stateManager.setState({ showMannequin: !currentState });
+        });
+
+        // Sync initial state
+        stateManager.subscribe((state) => {
+            const isOn = state.showMannequin;
+            if (isOn) {
+                showMannequinToggle.classList.add('on');
+                showMannequinToggle.classList.remove('off');
+                toggleValue.textContent = 'ON';
+            } else {
+                showMannequinToggle.classList.add('off');
+                showMannequinToggle.classList.remove('on');
+                toggleValue.textContent = 'OFF';
+            }
+        });
+    }
+
     stateManager.subscribe(render);
-    layerController.onChange(render);
+
+    // Handle Layer Switching for Overlays
+    const chassisOverlay = document.getElementById('chassisControls');
+    const driverOverlay = document.getElementById('driverControls');
+    const imageOverlay = document.getElementById('imageControls');
+
+    const updateOverlays = (activeLayer) => {
+        if (chassisOverlay) chassisOverlay.classList.toggle('hidden', activeLayer !== 'chassis');
+        if (driverOverlay) driverOverlay.classList.toggle('hidden', activeLayer !== 'driver');
+        if (imageOverlay) imageOverlay.classList.toggle('hidden', activeLayer !== 'image');
+    };
+
+    // Initial check
+    updateOverlays(layerController.selectedLayer);
+
+    layerController.onChange((activeLayer) => {
+        render(); // Re-render canvas
+        updateOverlays(activeLayer); // Update overlays
+    });
+
+    // Handle Interaction Dimming
+    // Elements for interaction dimming
+    const interactionElements = document.querySelectorAll('.smart-adjuster, .smart-toggle');
+
+    // Handle Interaction Dimming
+    stateManager.subscribeInteraction((activeParam) => {
+        const activeOverlay = !chassisOverlay.classList.contains('hidden') ? chassisOverlay :
+            !driverOverlay.classList.contains('hidden') ? driverOverlay :
+                !imageOverlay.classList.contains('hidden') ? imageOverlay : null;
+
+        if (!activeOverlay) return;
+
+        if (activeParam) {
+            activeOverlay.classList.add('has-interaction');
+            // Update active state for all adjusters
+            interactionElements.forEach(el => {
+                const p = el.dataset.param;
+                // For toggle, param might be implied or explicit? 
+                // showMannequinToggle doesn't have data-param in HTML?
+                // I need to check index.html.
+                // It has id="showMannequinToggle".
+                // I should add data-param="showMannequin" to it in index.html?
+                // Or handle it here.
+
+                let isActive = false;
+                if (Array.isArray(activeParam)) {
+                    isActive = activeParam.includes(p);
+                } else {
+                    isActive = (p === activeParam);
+                }
+
+                // Special case for showMannequin toggle if it lacks data-param
+                if (el.id === 'showMannequinToggle' && (activeParam === 'showMannequin' || (Array.isArray(activeParam) && activeParam.includes('showMannequin')))) {
+                    isActive = true;
+                }
+
+                if (isActive) {
+                    el.classList.add('active');
+                } else {
+                    el.classList.remove('active');
+                }
+            });
+        } else {
+            activeOverlay.classList.remove('has-interaction');
+            interactionElements.forEach(el => el.classList.remove('active'));
+        }
+    });
 
     const inputHandlers = [
         inputs.tireDiameter,

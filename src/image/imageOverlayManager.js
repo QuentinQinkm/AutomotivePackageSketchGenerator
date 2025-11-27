@@ -6,29 +6,26 @@ export class ImageOverlayManager {
         imageFrame,
         overlayImage,
         resizeHandle,
-        toggleImageButton,
-        imageControls,
-        imageToolbar,
+        imageControls, // The overlay container
+        uploadState,   // The upload UI container
+        editState,     // The edit UI container
         deleteImageBtn,
-        opacitySlider,
         imageUploadInput,
         flipImageBtn,
-        rotationSlider
+        stateManager
     }) {
         this.canvasArea = canvasArea;
         this.imageFrame = imageFrame;
         this.overlayImage = overlayImage;
         this.resizeHandle = resizeHandle;
-        this.toggleImageButton = toggleImageButton;
         this.imageControls = imageControls;
-        this.imageToolbar = imageToolbar;
+        this.uploadState = uploadState;
+        this.editState = editState;
         this.deleteImageBtn = deleteImageBtn;
-        this.opacitySlider = opacitySlider;
         this.imageUploadInput = imageUploadInput;
         this.flipImageBtn = flipImageBtn;
-        this.rotationSlider = rotationSlider;
+        this.stateManager = stateManager;
 
-        this.imageEditActive = false;
         this.hasImageOverlay = false;
         this.imageFlipped = false;
         this.imageRotation = 0;
@@ -37,14 +34,22 @@ export class ImageOverlayManager {
 
         this.#bindEvents();
         this.#updateImageEditingState();
+
+        // Subscribe to state changes for opacity and rotation
+        this.stateManager.subscribe(state => {
+            if (this.hasImageOverlay) {
+                // Opacity is 0-100 in state, 0-1 in CSS
+                this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 100) / 100;
+
+                if (state.imageRotation !== undefined) {
+                    this.imageRotation = state.imageRotation;
+                    this.#applyImageTransform();
+                }
+            }
+        });
     }
 
     #bindEvents() {
-        this.toggleImageButton.addEventListener('click', () => {
-            this.imageEditActive = !this.imageEditActive;
-            this.#updateImageEditingState();
-        });
-
         this.imageUploadInput.addEventListener('change', (event) => {
             const [file] = event.target.files || [];
             this.#handleImageFile(file);
@@ -56,25 +61,22 @@ export class ImageOverlayManager {
             this.hasImageOverlay = false;
             this.overlayImage.src = '';
             this.imageFrame.classList.remove('has-image');
+
+            // Reset state
             this.imageRotation = 0;
-            this.rotationSlider.value = 0;
             this.imageFlipped = false;
+            this.stateManager.setState({
+                imageRotation: 0,
+                imageOpacity: 100
+            });
+
             this.#applyImageTransform();
             this.#updateImageEditingState();
-        });
-
-        this.opacitySlider.addEventListener('input', (event) => {
-            this.overlayImage.style.opacity = event.target.value;
         });
 
         this.flipImageBtn.addEventListener('click', () => {
             if (!this.hasImageOverlay) return;
             this.imageFlipped = !this.imageFlipped;
-            this.#applyImageTransform();
-        });
-
-        this.rotationSlider.addEventListener('input', (event) => {
-            this.imageRotation = parseFloat(event.target.value);
             this.#applyImageTransform();
         });
 
@@ -103,20 +105,18 @@ export class ImageOverlayManager {
     }
 
     #updateImageEditingState() {
-        const canEditImage = this.imageEditActive && this.hasImageOverlay;
-        this.toggleImageButton.classList.toggle('active', this.imageEditActive);
-        this.imageControls.classList.toggle('visible', this.imageEditActive);
-        this.imageFrame.classList.toggle('editing', canEditImage);
-        this.canvasArea.classList.toggle('editing-image', canEditImage);
-        this.imageToolbar?.classList.toggle('actions-visible', canEditImage);
-        this.deleteImageBtn.disabled = !this.hasImageOverlay;
-        this.opacitySlider.disabled = !this.hasImageOverlay;
-        this.flipImageBtn.disabled = !this.hasImageOverlay;
-        this.rotationSlider.disabled = !this.hasImageOverlay;
-        if (!canEditImage) {
-            this.dragState = null;
-            this.resizeState = null;
+        // Toggle between Upload and Edit states
+        if (this.hasImageOverlay) {
+            this.uploadState.classList.add('hidden');
+            this.editState.classList.remove('hidden');
+            this.imageFrame.classList.add('editing'); // Always editing if loaded? Or maybe just selectable?
+        } else {
+            this.uploadState.classList.remove('hidden');
+            this.editState.classList.add('hidden');
+            this.imageFrame.classList.remove('editing');
         }
+
+        this.canvasArea.classList.toggle('editing-image', this.hasImageOverlay);
     }
 
     #handleImageFile(file) {
@@ -126,8 +126,15 @@ export class ImageOverlayManager {
             this.overlayImage.onload = () => {
                 this.hasImageOverlay = true;
                 this.imageFrame.classList.add('has-image');
+                this.aspectRatio = this.overlayImage.naturalWidth / this.overlayImage.naturalHeight;
                 this.#resetImageFrame();
-                this.overlayImage.style.opacity = this.opacitySlider.value;
+
+                // Initialize state
+                this.stateManager.setState({
+                    imageOpacity: 100,
+                    imageRotation: 0
+                });
+
                 this.#applyImageTransform();
                 this.#updateImageEditingState();
             };
@@ -139,8 +146,16 @@ export class ImageOverlayManager {
     #resetImageFrame() {
         const parentWidth = this.canvasArea.clientWidth;
         const parentHeight = this.canvasArea.clientHeight;
-        const width = Math.max(MIN_FRAME_WIDTH, parentWidth * 0.65);
-        const height = Math.max(MIN_FRAME_HEIGHT, parentHeight * 0.55);
+        // Start with a reasonable width, e.g., 50% of parent
+        let width = Math.max(MIN_FRAME_WIDTH, parentWidth * 0.5);
+        let height = width / this.aspectRatio;
+
+        // Ensure height is not too small, adjust width if necessary
+        if (height < MIN_FRAME_HEIGHT) {
+            height = MIN_FRAME_HEIGHT;
+            width = height * this.aspectRatio;
+        }
+
         this.imageFrame.style.width = `${width}px`;
         this.imageFrame.style.height = `${height}px`;
         this.imageFrame.style.left = `${(parentWidth - width) / 2}px`;
@@ -153,7 +168,7 @@ export class ImageOverlayManager {
     }
 
     #startDrag(event) {
-        if (!this.imageEditActive || !this.hasImageOverlay || event.target === this.resizeHandle) return;
+        if (!this.hasImageOverlay || event.target === this.resizeHandle) return;
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
         this.dragState = {
@@ -172,14 +187,11 @@ export class ImageOverlayManager {
         if (!this.dragState) return;
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
-        const parentWidth = this.canvasArea.clientWidth;
-        const parentHeight = this.canvasArea.clientHeight;
-        const frameWidth = this.imageFrame.offsetWidth;
-        const frameHeight = this.imageFrame.offsetHeight;
+        // Removed clamping to allow free movement
         const nextLeft = this.dragState.left + (point.x - this.dragState.startX);
         const nextTop = this.dragState.top + (point.y - this.dragState.startY);
-        this.imageFrame.style.left = `${Math.min(Math.max(0, nextLeft), parentWidth - frameWidth)}px`;
-        this.imageFrame.style.top = `${Math.min(Math.max(0, nextTop), parentHeight - frameHeight)}px`;
+        this.imageFrame.style.left = `${nextLeft}px`;
+        this.imageFrame.style.top = `${nextTop}px`;
     }
 
     #stopDrag() {
@@ -189,7 +201,7 @@ export class ImageOverlayManager {
     }
 
     #startResize(event) {
-        if (!this.imageEditActive || !this.hasImageOverlay) return;
+        if (!this.hasImageOverlay) return;
         event.stopPropagation();
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
@@ -209,22 +221,19 @@ export class ImageOverlayManager {
         if (!this.resizeState) return;
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
-        const parentWidth = this.canvasArea.clientWidth;
-        const parentHeight = this.canvasArea.clientHeight;
-        const frameLeft = this.imageFrame.offsetLeft;
-        const frameTop = this.imageFrame.offsetTop;
-        const maxWidth = parentWidth - frameLeft;
-        const maxHeight = parentHeight - frameTop;
-        const constrainedMaxWidth = Math.max(MIN_FRAME_WIDTH, maxWidth);
-        const constrainedMaxHeight = Math.max(MIN_FRAME_HEIGHT, maxHeight);
-        const nextWidth = Math.min(
-            Math.max(MIN_FRAME_WIDTH, this.resizeState.width + (point.x - this.resizeState.startX)),
-            constrainedMaxWidth
-        );
-        const nextHeight = Math.min(
-            Math.max(MIN_FRAME_HEIGHT, this.resizeState.height + (point.y - this.resizeState.startY)),
-            constrainedMaxHeight
-        );
+
+        // Calculate new width based on drag
+        let nextWidth = Math.max(MIN_FRAME_WIDTH, this.resizeState.width + (point.x - this.resizeState.startX));
+
+        // Enforce aspect ratio
+        let nextHeight = nextWidth / this.aspectRatio;
+
+        // Optional: Check if height is too small
+        if (nextHeight < MIN_FRAME_HEIGHT) {
+            nextHeight = MIN_FRAME_HEIGHT;
+            nextWidth = nextHeight * this.aspectRatio;
+        }
+
         this.imageFrame.style.width = `${nextWidth}px`;
         this.imageFrame.style.height = `${nextHeight}px`;
     }

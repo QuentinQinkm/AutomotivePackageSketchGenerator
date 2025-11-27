@@ -1,0 +1,320 @@
+/* Smart Adjuster Styles */
+.smart-adjuster {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 140px;
+    padding: 10px;
+    border-radius: 20px;
+    cursor: ew-resize;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    background: transparent;
+    box-shadow: none;
+    /* Ensure it doesn't collapse when empty before init */
+    min-height: 60px;
+    opacity: 0.65;
+    transition: opacity 0.2s ease, background 0.3s, box-shadow 0.3s;
+}
+
+.smart-adjuster:hover,
+.smart-adjuster.active,
+.smart-adjuster.interacting {
+    opacity: 1.0;
+}
+
+.smart-adjuster:hover,
+.smart-adjuster.is-dragging {
+    background: rgba(255, 255, 255, 0.6);
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(4px);
+}
+
+.adjuster-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 14px;
+    color: #000000;
+    margin-bottom: 4px;
+    pointer-events: none;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.adjuster-value {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 16px;
+    color: #000000;
+    margin-top: 4px;
+    pointer-events: none;
+}
+
+/* Knob Container - Hidden by default */
+.adjuster-knob-container {
+    height: 0;
+    width: 100%;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.smart-adjuster:hover .adjuster-knob-container,
+.smart-adjuster.is-dragging .adjuster-knob-container {
+    height: 24px;
+    opacity: 1;
+    margin: 4px 0;
+}
+
+/* Masking Layer */
+.adjuster-knob-mask {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    mask-image: linear-gradient(90deg, transparent, black 30%, black 70%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, black 30%, black 70%, transparent);
+}
+
+/* Moving Track */
+.adjuster-knob-track {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.knob-tick {
+    width: 2px;
+    height: 8px;
+    /* Base height */
+    background-color: #000000;
+    border-radius: 1px;
+    position: absolute;
+    left: 50%;
+    /* Center the origin */
+    top: 50%;
+    transform: translate(-50%, -50%);
+    will-change: transform, height, opacity;
+    opacity: 0.3;
+    /* Base opacity */
+    transition: none;
+    /* We handle animation in JS */
+}
+
+/* Layout Container */
+.chassis-controls-overlay,
+.driver-controls-overlay {
+    position: absolute;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    /* Remove gap, let rows handle spacing via fixed height */
+    z-index: 100;
+    align-items: center;
+    pointer-events: none;
+    /* Allow clicks to pass through gaps */
+    transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.chassis-controls-overlay.hidden,
+.driver-controls-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none !important;
+}
+
+.chassis-controls-overlay .smart-adjuster,
+.driver-controls-overlay .smart-adjuster,
+.driver-controls-overlay .smart-toggle {
+    pointer-events: auto;
+    /* Re-enable clicks on adjusters */
+}
+
+.control-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    height: 90px;
+    /* Fixed height to prevent layout shift */
+}
+
+/* Interaction Dimming */
+.chassis-controls-overlay.has-interaction .smart-adjuster,
+.driver-controls-overlay.has-interaction .smart-adjuster,
+.driver-controls-overlay.has-interaction .smart-toggle {
+    opacity: 0.2;
+    transition: opacity 0.2s ease;
+}
+
+.chassis-controls-overlay.has-interaction .smart-adjuster.active,
+.driver-controls-overlay.has-interaction .smart-adjuster.active,
+.driver-controls-overlay.has-interaction .smart-toggle.active {
+    opacity: 1;
+}
+
+/* Smart Toggle */
+.smart-toggle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 140px;
+    padding: 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    box-shadow: none;
+    /* Default: No shadow */
+    background: transparent;
+    /* Default: Transparent */
+    min-height: 60px;
+    color: #000000;
+    /* Default: Black text */
+    opacity: 0.65;
+    transition: opacity 0.2s ease, background 0.3s, box-shadow 0.3s;
+}
+
+.smart-toggle:hover,
+.smart-toggle.active {
+    opacity: 1.0;
+}
+
+/* Hover States (The "Card" look) */
+.smart-toggle:hover {
+    box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.25);
+}
+
+.smart-toggle.on:hover {
+    background: rgba(255, 255, 255, 0.6);
+    color: #000000;
+}
+
+.smart-toggle.off:hover {
+    background: rgba(0, 0, 0, 0.8);
+    color: #FFFFFF;
+}
+
+.smart-toggle .toggle-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 14px;
+    margin-bottom: 4px;
+    pointer-events: none;
+}
+
+.smart-toggle .toggle-value {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 16px;
+    margin-top: 4px;
+    pointer-events: none;
+}
+
+/* Smart Button (Stateless) */
+.smart-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 140px;
+    padding: 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    box-shadow: none;
+    background: transparent;
+    min-height: 60px;
+    color: #000000;
+    opacity: 0.65;
+}
+
+.smart-button:hover {
+    opacity: 1.0;
+    background: rgba(255, 255, 255, 0.6);
+    box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.25);
+}
+
+.smart-button .button-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.smart-button.delete {
+    color: #b40000;
+}
+
+.smart-button.delete:hover {
+    background: rgba(255, 255, 255, 0.8);
+    /* Slightly more opaque for warning? */
+}
+
+/* Image Controls Layout */
+.image-controls-overlay {
+    position: absolute;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    z-index: 100;
+    align-items: center;
+    pointer-events: none;
+    transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.image-controls-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none !important;
+}
+
+.image-controls-overlay .smart-adjuster,
+.image-controls-overlay .smart-button {
+    pointer-events: auto;
+}
+
+.image-controls-overlay.has-interaction .smart-adjuster,
+.image-controls-overlay.has-interaction .smart-button {
+    opacity: 0.2;
+    transition: opacity 0.2s ease;
+}
+
+.image-controls-overlay.has-interaction .smart-adjuster.active,
+.image-controls-overlay.has-interaction .smart-button:hover {
+    opacity: 1;
+}
+
+.upload-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 90px;
+}
+
+.upload-btn {
+    width: auto;
+    padding: 0 40px;
+}
+
+.upload-btn:hover {
+    background: rgba(255, 255, 255, 0.6);
+    box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.25);
+}
+
+/* Utility */
+.hidden {
+    display: none !important;
+}

@@ -9,17 +9,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="smart-adjuster.css">
 </head>
 
 <body>
     <div class="app-container">
         <div class="content-wrapper">
             <aside class="layer-panel">
-                <div class="layer-list">
-                    <button class="layer-button active" data-layer="chassis">Chassis</button>
-                    <button class="layer-button" data-layer="driver">Driver</button>
-                    <button class="layer-button" data-layer="image">Image</button>
-                </div>
+
 
                 <div class="layer-control-groups">
                     <div class="layer-controls active" data-layer-controls="chassis">
@@ -175,48 +172,33 @@
                         </div>
                     </div>
 
-                    <div class="layer-controls" data-layer-controls="image">
-                        <div class="control-section">
-                            <h3>Image Overlay</h3>
-                            <div class="image-toolbar">
-                                <button id="toggleImageEdit" type="button">Edit Overlay</button>
-                                <div class="image-actions" id="imageActions">
-                                    <button id="flipImage" type="button">Flip</button>
-                                    <label class="rotation-control">
-                                        Rotate
-                                        <input type="range" id="imageRotate" min="-45" max="45" step="1" value="0">
-                                    </label>
-                                </div>
-                                <div class="image-controls" id="imageControls">
-                                    <label class="image-upload">
-                                        Upload
-                                        <input type="file" id="imageUpload" accept="image/*">
-                                    </label>
-                                    <button id="deleteImage" type="button">Delete</button>
-                                    <div class="opacity-control">
-                                        <span>Transparency</span>
-                                        <input type="range" id="imageOpacity" min="0" max="1" step="0.05" value="1">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Old Image Controls Removed -->
                 </div>
             </aside>
 
             <main class="canvas-container">
                 <div class="canvas-area" id="canvasArea">
-                    <svg id="carCanvas" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
+                    <div class="image-overlay-wrapper" id="imageOverlayWrapper">
+                        <div class="image-frame" id="imageFrame">
+                            <img id="overlayImage" alt="Reference overlay">
+                            <div class="resize-handle" id="resizeHandle"></div>
+                        </div>
+                    </div>
+                    <svg id="carCanvas" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
                         <!-- Elements will be drawn here by JS -->
                         <g id="drawingGroup"></g>
                     </svg>
-                    <div class="canvas-content" id="canvasContent">
-                        <div class="image-overlay-wrapper" id="imageOverlayWrapper">
-                            <div class="image-frame" id="imageFrame">
-                                <img id="overlayImage" alt="Reference overlay">
-                                <div class="resize-handle" id="resizeHandle"></div>
-                            </div>
+                    <div id="dimensionDisplay">
+                        <div class="dimension-item">
+                            <span class="dim-label">Length</span>
+                            <span class="dim-value" id="dimLengthVal">---- mm</span>
                         </div>
+                        <div class="dimension-item">
+                            <span class="dim-label">Height</span>
+                            <span class="dim-value" id="dimHeightVal">---- mm</span>
+                        </div>
+                    </div>
+                    <div class="canvas-content" id="canvasContent">
                         <div class="bodyandhead-parent">
                             <div class="bodyandhead-icon" data-inline-svg="HumanFigure/BodyAndHead.svg"
                                 aria-label="body and head"></div>
@@ -240,6 +222,97 @@
                             </div>
                         </div>
                     </div>
+                </div>
+                <!-- Chassis Controls Overlay -->
+                <div class="chassis-controls-overlay" id="chassisControls">
+                    <!-- Row 1: 5 items -->
+                    <div class="control-row">
+                        <div class="smart-adjuster" data-param="wheelBase" data-label="Wheel Base" data-min="2000"
+                            data-max="4000" data-step="50"></div>
+                        <div class="smart-adjuster" data-param="tireDiameter" data-label="Tire Size" data-min="500"
+                            data-max="1000" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="groundClearance" data-label="Ground Clearance"
+                            data-min="100" data-max="400" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="floorThickness" data-label="Floor Thickness"
+                            data-min="50" data-max="300" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="wheelArchGap" data-label="Wheel Arch Gap" data-min="0"
+                            data-max="200" data-step="5"></div>
+                    </div>
+                    <!-- Row 2: 4 items -->
+                    <div class="control-row">
+                        <div class="smart-adjuster" data-param="frontApproachAngle" data-label="Front Approach"
+                            data-min="0" data-max="60" data-step="1"></div>
+                        <div class="smart-adjuster" data-param="frontOverhang" data-label="Front Overhang"
+                            data-min="400" data-max="1500" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="rearDepartureAngle" data-label="Rear Departure"
+                            data-min="0" data-max="60" data-step="1"></div>
+                        <div class="smart-adjuster" data-param="rearOverhang" data-label="Rear Overhang" data-min="400"
+                            data-max="1500" data-step="10"></div>
+                    </div>
+                </div>
+
+                <!-- Driver Controls Overlay -->
+                <div class="driver-controls-overlay hidden" id="driverControls">
+                    <!-- Row 1: Seat Position -->
+                    <div class="control-row">
+                        <div class="smart-adjuster" data-param="hPointHeight" data-label="H-Point Height" data-min="100"
+                            data-max="500" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="hPointX" data-label="H-Point X" data-min="500"
+                            data-max="2000" data-step="10"></div>
+                        <!-- Smart Toggle -->
+                        <div class="smart-toggle on" id="showMannequinToggle">
+                            <div class="toggle-label">Show Driver</div>
+                            <div class="toggle-value">ON</div>
+                        </div>
+                    </div>
+                    <!-- Row 2: Driver -->
+                    <div class="control-row">
+                        <div class="smart-adjuster" data-param="bodyReclineAngle" data-label="Body Recline"
+                            data-min="10" data-max="70" data-step="1"></div>
+                        <div class="smart-adjuster" data-param="hipPedalDistance" data-label="Hip-Pedal Dist"
+                            data-min="400" data-max="950" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="handHeight" data-label="Hand Height" data-min="-200"
+                            data-max="800" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="handDistanceX" data-label="Hand Dist X" data-min="100"
+                            data-max="800" data-step="10"></div>
+                        <div class="smart-adjuster" data-param="mannequinHeight" data-label="Driver Height"
+                            data-min="160" data-max="190" data-step="10"></div>
+                    </div>
+                </div>
+
+                <!-- Image Controls Overlay -->
+                <div class="image-controls-overlay hidden" id="imageControls">
+                    <!-- State 1: Upload -->
+                    <div class="upload-state" id="imageUploadState">
+                        <label class="smart-button upload-btn">
+                            <div class="button-label">Drag or upload an image</div>
+                            <input type="file" id="imageUploadInput" accept="image/*" hidden>
+                        </label>
+                    </div>
+
+                    <!-- State 2: Edit -->
+                    <div class="edit-state hidden" id="imageEditState">
+                        <div class="control-row">
+                            <div class="smart-adjuster" data-param="imageOpacity" data-label="Transparency" data-min="0"
+                                data-max="100" data-step="5"></div>
+                            <div class="smart-adjuster" data-param="imageRotation" data-label="Rotation" data-min="-45"
+                                data-max="45" data-step="1"></div>
+
+                            <div class="smart-button" id="flipImageBtn">
+                                <div class="button-label">Flip</div>
+                            </div>
+
+                            <div class="smart-button delete" id="deleteImageBtn">
+                                <div class="button-label">Delete</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="layer-list">
+                    <button class="layer-button active" data-layer="chassis">Chassis</button>
+                    <button class="layer-button" data-layer="driver">Driver</button>
+                    <button class="layer-button" data-layer="image">Image</button>
                 </div>
             </main>
         </div>

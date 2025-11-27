@@ -142,7 +142,8 @@ export class ChassisRenderer {
             this.clearActiveControlPointHandles();
         };
         this.canvasArea.addEventListener('mousedown', this.handleCanvasMouseDown);
-
+        this.dimLengthVal = document.getElementById('dimLengthVal');
+        this.dimHeightVal = document.getElementById('dimHeightVal');
     }
 
     destroy() {
@@ -159,6 +160,12 @@ export class ChassisRenderer {
         const state = this.stateManager.getState();
         const showChassisControls = this.layerController.isActive('chassis');
         this.drawingGroup.innerHTML = '';
+        const linesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const dotsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.linesGroup = linesGroup;
+        this.dotsGroup = dotsGroup;
+        this.drawingGroup.appendChild(linesGroup);
+        this.drawingGroup.appendChild(dotsGroup);
         this.hideLineMenu();
         this.segmentInfoMap.clear();
 
@@ -197,10 +204,10 @@ export class ChassisRenderer {
 
         const bodyContour = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         bodyContour.setAttribute('d', pathD);
-        bodyContour.setAttribute('stroke', '#38bdf8');
-        bodyContour.setAttribute('stroke-width', '2');
+        bodyContour.setAttribute('stroke', COLOR_BLUE);
+        bodyContour.setAttribute('stroke-width', '4');
         bodyContour.setAttribute('fill', 'none');
-        this.drawingGroup.appendChild(bodyContour);
+        linesGroup.appendChild(bodyContour);
 
         const floorLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         floorLine.setAttribute('x1', frontArchStartX);
@@ -208,9 +215,9 @@ export class ChassisRenderer {
         floorLine.setAttribute('x2', rearArchEndX);
         floorLine.setAttribute('y2', floorY);
         floorLine.setAttribute('stroke', '#f8fafc');
-        floorLine.setAttribute('stroke-width', '2');
+        floorLine.setAttribute('stroke-width', '3');
         floorLine.setAttribute('stroke-dasharray', '4, 4');
-        this.drawingGroup.appendChild(floorLine);
+        linesGroup.appendChild(floorLine);
 
         const frontApproachAngleRad = state.frontApproachAngle * Math.PI / 180;
         const rearDepartureAngleRad = state.rearDepartureAngle * Math.PI / 180;
@@ -230,7 +237,7 @@ export class ChassisRenderer {
         frontTangentLine.setAttribute('stroke', 'rgba(148, 163, 184, 0.5)');
         frontTangentLine.setAttribute('stroke-width', '2');
         frontTangentLine.setAttribute('stroke-dasharray', '5, 5');
-        this.drawingGroup.appendChild(frontTangentLine);
+        linesGroup.appendChild(frontTangentLine);
 
         const rearTheta = (Math.PI / 2) - rearDepartureAngleRad;
         const rearTangentX = rearWheelX + tireRadiusPx * Math.cos(rearTheta);
@@ -246,7 +253,7 @@ export class ChassisRenderer {
         rearTangentLine.setAttribute('stroke', 'rgba(148, 163, 184, 0.5)');
         rearTangentLine.setAttribute('stroke-width', '2');
         rearTangentLine.setAttribute('stroke-dasharray', '5, 5');
-        this.drawingGroup.appendChild(rearTangentLine);
+        linesGroup.appendChild(rearTangentLine);
 
         const frontOverhangPx = state.frontOverhang * SCALE;
         const targetFrontX = frontWheelX - frontOverhangPx;
@@ -265,13 +272,13 @@ export class ChassisRenderer {
         frontBumperLine.setAttribute('y1', targetFrontY);
         frontBumperLine.setAttribute('x2', frontArchStartX);
         frontBumperLine.setAttribute('y2', chassisBottomY);
-        frontBumperLine.setAttribute('stroke', '#38bdf8');
-        frontBumperLine.setAttribute('stroke-width', '2');
-        this.drawingGroup.appendChild(frontBumperLine);
+        frontBumperLine.setAttribute('stroke', COLOR_BLUE);
+        frontBumperLine.setAttribute('stroke-width', '4');
+        linesGroup.appendChild(frontBumperLine);
 
         if (showChassisControls) {
             const frontOverhangDot = this.createOverhangAnchorDot(frontTipPoint.x, frontTipPoint.y, 'front');
-            this.drawingGroup.appendChild(frontOverhangDot);
+            dotsGroup.appendChild(frontOverhangDot);
         }
 
         const frontFaceBreakPos = this.getPointPosition('frontFaceBreak', frontWheelX, rearWheelX, wheelY, state);
@@ -321,7 +328,7 @@ export class ChassisRenderer {
                 e.preventDefault();
                 e.stopPropagation();
             });
-            this.drawingGroup.appendChild(anchorDot);
+            dotsGroup.appendChild(anchorDot);
         }
 
         const createDraggableDot = (x, y, pointName) => {
@@ -368,6 +375,7 @@ export class ChassisRenderer {
                 this.bodyDragOffsetY = svgP.y - currentDotY;
                 this.setDotVisualState(dot, true);
                 this.showPointTooltip(pointName, currentDotX, currentDotY);
+                this.stateManager.setInteraction(pointName);
                 e.preventDefault();
                 e.stopPropagation();
             });
@@ -397,13 +405,13 @@ export class ChassisRenderer {
         rearBumperLine.setAttribute('y1', targetRearY);
         rearBumperLine.setAttribute('x2', rearArchEndX);
         rearBumperLine.setAttribute('y2', chassisBottomY);
-        rearBumperLine.setAttribute('stroke', '#38bdf8');
-        rearBumperLine.setAttribute('stroke-width', '2');
-        this.drawingGroup.appendChild(rearBumperLine);
+        rearBumperLine.setAttribute('stroke', COLOR_BLUE);
+        rearBumperLine.setAttribute('stroke-width', '4');
+        linesGroup.appendChild(rearBumperLine);
 
         if (showChassisControls) {
             const rearOverhangDot = this.createOverhangAnchorDot(rearTipPoint.x, rearTipPoint.y, 'rear');
-            this.drawingGroup.appendChild(rearOverhangDot);
+            dotsGroup.appendChild(rearOverhangDot);
         }
 
         const pointMap = {
@@ -435,33 +443,51 @@ export class ChassisRenderer {
         const bodyProfilePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         bodyProfilePath.setAttribute('d', bodyPath);
         bodyProfilePath.setAttribute('stroke', COLOR_BLUE);
-        bodyProfilePath.setAttribute('stroke-width', '2');
+        bodyProfilePath.setAttribute('stroke-width', '4');
         bodyProfilePath.setAttribute('fill', 'none');
-        this.drawingGroup.appendChild(bodyProfilePath);
+        linesGroup.appendChild(bodyProfilePath);
         this.bodyProfilePathElement = bodyProfilePath;
 
         if (showChassisControls) {
-            this.drawingGroup.appendChild(createDraggableDot(bonnetEndPx.x, bonnetEndPx.y, 'bonnetEnd'));
-            this.drawingGroup.appendChild(createDraggableDot(windowEndPx.x, windowEndPx.y, 'windowEnd'));
-            this.drawingGroup.appendChild(createDraggableDot(rooftopEndPx.x, rooftopEndPx.y, 'rooftopEnd'));
-            this.drawingGroup.appendChild(createDraggableDot(rearWindowEndPx.x, rearWindowEndPx.y, 'rearWindowEnd'));
-            this.drawingGroup.appendChild(createDraggableDot(bumperEndPx.x, bumperEndPx.y, 'bumperEnd'));
+            dotsGroup.appendChild(createDraggableDot(bonnetEndPx.x, bonnetEndPx.y, 'bonnetEnd'));
+            dotsGroup.appendChild(createDraggableDot(windowEndPx.x, windowEndPx.y, 'windowEnd'));
+            dotsGroup.appendChild(createDraggableDot(rooftopEndPx.x, rooftopEndPx.y, 'rooftopEnd'));
+            dotsGroup.appendChild(createDraggableDot(rearWindowEndPx.x, rearWindowEndPx.y, 'rearWindowEnd'));
+            dotsGroup.appendChild(createDraggableDot(bumperEndPx.x, bumperEndPx.y, 'bumperEnd'));
             this.renderSegmentControls(bodySegments);
         } else if (this.overlayGroup) {
             this.overlayGroup.innerHTML = '';
         }
 
-        this.drawTire(rearWheelX, wheelY, tireRadiusPx, 'rear', showChassisControls);
-        this.drawTire(frontWheelX, wheelY, tireRadiusPx, 'front', showChassisControls);
+        this.drawTire(rearWheelX, wheelY, tireRadiusPx, 'rear', showChassisControls, linesGroup, dotsGroup);
+        this.drawTire(frontWheelX, wheelY, tireRadiusPx, 'front', showChassisControls, linesGroup, dotsGroup);
 
         const groundLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         groundLine.setAttribute('x1', 0);
         groundLine.setAttribute('y1', GROUND_Y);
-        groundLine.setAttribute('x2', 800);
+        groundLine.setAttribute('x2', 1920);
         groundLine.setAttribute('y2', GROUND_Y);
         groundLine.setAttribute('stroke', 'rgba(255,255,255,0.1)');
-        groundLine.setAttribute('stroke-width', '1');
-        this.drawingGroup.appendChild(groundLine);
+        groundLine.setAttribute('stroke-width', '2');
+        linesGroup.appendChild(groundLine);
+
+        this.updateDimensions();
+    }
+
+    updateDimensions() {
+        if (!this.bodyProfilePathElement) return;
+        try {
+            const bbox = this.bodyProfilePathElement.getBBox();
+            if (bbox && bbox.width > 0) {
+                const lengthMm = Math.round(bbox.width / SCALE);
+                const heightMm = Math.round((GROUND_Y - bbox.y) / SCALE);
+
+                if (this.dimLengthVal) this.dimLengthVal.textContent = `${lengthMm} mm`;
+                if (this.dimHeightVal) this.dimHeightVal.textContent = `${heightMm} mm`;
+            }
+        } catch (e) {
+            // ignore
+        }
     }
 
     createOverhangAnchorDot(x, y, position) {
@@ -494,16 +520,14 @@ export class ChassisRenderer {
         return dot;
     }
 
-    drawTire(cx, cy, r, position = 'front', showAxleHandle = true) {
-        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-
+    drawTire(cx, cy, r, position = 'front', showAxleHandle = true, linesGroup, dotsGroup) {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', cx);
         circle.setAttribute('cy', cy);
         circle.setAttribute('r', r);
         circle.setAttribute('fill', 'rgba(255, 255, 255, 0.2)');
         circle.setAttribute('stroke', 'none');
-        group.appendChild(circle);
+        linesGroup.appendChild(circle);
 
         if (showAxleHandle) {
             const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -521,10 +545,8 @@ export class ChassisRenderer {
                 }
             });
             this.setDotVisualState(center, false);
-            group.appendChild(center);
+            dotsGroup.appendChild(center);
         }
-
-        this.drawingGroup.appendChild(group);
     }
 
     startOverhangDrag(position, pointKey, dotElement, event) {
@@ -542,6 +564,7 @@ export class ChassisRenderer {
         this.activeOverhangPointKey = pointKey;
         this.setDotVisualState(dotElement, true);
         this.showPointTooltip(pointKey, currentX, currentY);
+        this.stateManager.setInteraction(position === 'front' ? 'frontOverhang' : 'rearOverhang');
         event.preventDefault();
         event.stopPropagation();
     }
@@ -566,6 +589,7 @@ export class ChassisRenderer {
         this.isDraggingAxle = position;
         this.axleDragOffsetX = svgCoords.x - axleX;
         this.setDotVisualState(centerElement, true);
+        this.stateManager.setInteraction('wheelBase');
         event.preventDefault();
         event.stopPropagation();
     }
@@ -733,6 +757,7 @@ export class ChassisRenderer {
         if (this.draggingControlPointHandle) {
             this.endControlPointHandleDrag();
         }
+        this.stateManager.setInteraction(null);
     }
 
     setDotVisualState(element, isActive) {
@@ -925,7 +950,7 @@ export class ChassisRenderer {
                     if (!this.layerController.isActive('chassis')) return;
                     event.stopPropagation();
                     event.preventDefault();
-                     this.setActiveControlPointHandles(segment.id, point.id);
+                    this.setActiveControlPointHandles(segment.id, point.id);
                     this.startControlPointDrag(segment.id, point.id);
                 });
                 circle.addEventListener('mouseup', (event) => {
@@ -1578,6 +1603,7 @@ export class ChassisRenderer {
         if (!this.bodyProfilePathElement || !this.latestSegments) return;
         const path = this.buildBodyProfilePath(this.latestSegments);
         this.bodyProfilePathElement.setAttribute('d', path);
+        this.updateDimensions();
     }
 }
 

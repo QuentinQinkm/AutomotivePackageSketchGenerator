@@ -377,6 +377,14 @@ export class HumanFigureRenderer {
         if (!svgCoords) return;
         this.draggingDriverAnchor = key;
         this.setDriverAnchorVisualState(key, true);
+
+        let param = null;
+        if (key === 'hPoint') param = ['hPointX', 'hPointHeight'];
+        else if (key === 'heel') param = 'hipPedalDistance';
+        else if (key === 'hand') param = ['handDistanceX', 'handHeight'];
+        else if (key === 'head') param = 'bodyReclineAngle';
+        if (param) this.stateManager.setInteraction(param);
+
         this.handleDriverAnchorDrag(key, svgCoords);
         event.preventDefault();
         event.stopPropagation();
@@ -396,6 +404,7 @@ export class HumanFigureRenderer {
         if (this.hoveredDriverAnchor !== key) {
             this.setDriverAnchorVisualState(key, false);
         }
+        this.stateManager.setInteraction(null);
     }
 
     cancelDriverAnchorDrag() {

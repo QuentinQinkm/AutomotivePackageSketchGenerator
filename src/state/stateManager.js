@@ -8,6 +8,8 @@ export class StateManager {
             min: parseInt(this.inputs.wheelBase.min, 10),
             max: parseInt(this.inputs.wheelBase.max, 10)
         };
+        this.interactingParam = null;
+        this.interactionListeners = new Set();
     }
 
     #buildInitialState() {
@@ -53,6 +55,31 @@ export class StateManager {
 
     notify() {
         this.listeners.forEach((listener) => listener(this.state));
+    }
+
+    subscribeInteraction(listener) {
+        this.interactionListeners.add(listener);
+        return () => this.interactionListeners.delete(listener);
+    }
+
+    setInteraction(paramName) {
+        let changed = false;
+        if (Array.isArray(paramName)) {
+            // Simple check: different length or different content
+            if (!Array.isArray(this.interactingParam) ||
+                this.interactingParam.length !== paramName.length ||
+                !paramName.every((val, index) => val === this.interactingParam[index])) {
+                this.interactingParam = paramName;
+                changed = true;
+            }
+        } else if (this.interactingParam !== paramName) {
+            this.interactingParam = paramName;
+            changed = true;
+        }
+
+        if (changed) {
+            this.interactionListeners.forEach(l => l(this.interactingParam));
+        }
     }
 
     updateFromInputs() {

@@ -1,16 +1,16 @@
 export const COLOR_FRONT_POINT = '#10b981';
 export const COLOR_REAR_POINT = '#f97316';
-export const COLOR_BLUE = '#38bdf8';
+export const COLOR_BLUE = '#1e3a8a'; // Dark Blue
 
-export const DOT_RADIUS = 3.5;
-export const DOT_RADIUS_ACTIVE = 5;
-export const SPLINE_DOT_RADIUS = 2;
-export const SPLINE_DOT_ACTIVE_RADIUS = 3;
-export const SPLINE_HANDLE_RADIUS = 2;
+export const DOT_RADIUS = 8;
+export const DOT_RADIUS_ACTIVE = 12;
+export const SPLINE_DOT_RADIUS = 5;
+export const SPLINE_DOT_ACTIVE_RADIUS = 7;
+export const SPLINE_HANDLE_RADIUS = 5;
 
-export const SCALE = 0.1;
-export const GROUND_Y = 300;
-export const CENTER_X = 400;
+export const SCALE = 0.25;
+export const GROUND_Y = 650; // Moved up from 750
+export const CENTER_X = 960;
 
 export const BODY_POINT_CONFIG = {
     frontFaceBreak: {
