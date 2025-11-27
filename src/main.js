@@ -3,11 +3,14 @@ import { ChassisRenderer } from './renderers/chassisRenderer.js';
 import { HumanFigureRenderer } from './renderers/humanFigureRenderer.js';
 import { StateManager } from './state/stateManager.js';
 import { LayerController } from './ui/layerController.js';
+import { CanvasZoomController } from './ui/canvasZoomController.js';
+import { loadInlineSvgs } from './ui/inlineSvgLoader.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const svg = document.getElementById('carCanvas');
     const drawingGroup = document.getElementById('drawingGroup');
     const canvasArea = document.getElementById('canvasArea');
+    const canvasContent = document.getElementById('canvasContent');
 
     const inputs = {
         tireDiameter: document.getElementById('tireDiameter'),
@@ -49,6 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const stateManager = new StateManager({ inputs, displays });
 
+    await loadInlineSvgs(document.querySelectorAll('[data-inline-svg]'));
+
     const layerController = new LayerController({
         buttons: document.querySelectorAll('.layer-button'),
         controlGroups: document.querySelectorAll('[data-layer-controls]')
@@ -64,7 +69,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const humanFigureRenderer = new HumanFigureRenderer({
         canvasArea,
-        stateManager
+        canvasContent,
+        svg,
+        stateManager,
+        layerController
+    });
+
+    const zoomController = new CanvasZoomController({
+        canvasArea,
+        svgElement: svg,
+        overlayLayer: canvasContent
     });
 
     new ImageOverlayManager({
@@ -88,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     stateManager.subscribe(render);
+    layerController.onChange(render);
 
     const inputHandlers = [
         inputs.tireDiameter,

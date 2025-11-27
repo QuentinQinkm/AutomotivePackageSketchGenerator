@@ -155,9 +155,10 @@ export class ImageOverlayManager {
     #startDrag(event) {
         if (!this.imageEditActive || !this.hasImageOverlay || event.target === this.resizeHandle) return;
         event.preventDefault();
+        const point = this.#getNormalizedPoint(event);
         this.dragState = {
-            startX: event.clientX,
-            startY: event.clientY,
+            startX: point.x,
+            startY: point.y,
             left: parseFloat(this.imageFrame.style.left) || 0,
             top: parseFloat(this.imageFrame.style.top) || 0
         };
@@ -170,12 +171,13 @@ export class ImageOverlayManager {
     #handleDragMove(event) {
         if (!this.dragState) return;
         event.preventDefault();
+        const point = this.#getNormalizedPoint(event);
         const parentWidth = this.canvasArea.clientWidth;
         const parentHeight = this.canvasArea.clientHeight;
         const frameWidth = this.imageFrame.offsetWidth;
         const frameHeight = this.imageFrame.offsetHeight;
-        const nextLeft = this.dragState.left + (event.clientX - this.dragState.startX);
-        const nextTop = this.dragState.top + (event.clientY - this.dragState.startY);
+        const nextLeft = this.dragState.left + (point.x - this.dragState.startX);
+        const nextTop = this.dragState.top + (point.y - this.dragState.startY);
         this.imageFrame.style.left = `${Math.min(Math.max(0, nextLeft), parentWidth - frameWidth)}px`;
         this.imageFrame.style.top = `${Math.min(Math.max(0, nextTop), parentHeight - frameHeight)}px`;
     }
@@ -190,9 +192,10 @@ export class ImageOverlayManager {
         if (!this.imageEditActive || !this.hasImageOverlay) return;
         event.stopPropagation();
         event.preventDefault();
+        const point = this.#getNormalizedPoint(event);
         this.resizeState = {
-            startX: event.clientX,
-            startY: event.clientY,
+            startX: point.x,
+            startY: point.y,
             width: this.imageFrame.offsetWidth,
             height: this.imageFrame.offsetHeight
         };
@@ -205,6 +208,7 @@ export class ImageOverlayManager {
     #handleResizeMove(event) {
         if (!this.resizeState) return;
         event.preventDefault();
+        const point = this.#getNormalizedPoint(event);
         const parentWidth = this.canvasArea.clientWidth;
         const parentHeight = this.canvasArea.clientHeight;
         const frameLeft = this.imageFrame.offsetLeft;
@@ -214,11 +218,11 @@ export class ImageOverlayManager {
         const constrainedMaxWidth = Math.max(MIN_FRAME_WIDTH, maxWidth);
         const constrainedMaxHeight = Math.max(MIN_FRAME_HEIGHT, maxHeight);
         const nextWidth = Math.min(
-            Math.max(MIN_FRAME_WIDTH, this.resizeState.width + (event.clientX - this.resizeState.startX)),
+            Math.max(MIN_FRAME_WIDTH, this.resizeState.width + (point.x - this.resizeState.startX)),
             constrainedMaxWidth
         );
         const nextHeight = Math.min(
-            Math.max(MIN_FRAME_HEIGHT, this.resizeState.height + (event.clientY - this.resizeState.startY)),
+            Math.max(MIN_FRAME_HEIGHT, this.resizeState.height + (point.y - this.resizeState.startY)),
             constrainedMaxHeight
         );
         this.imageFrame.style.width = `${nextWidth}px`;
@@ -229,6 +233,19 @@ export class ImageOverlayManager {
         this.resizeState = null;
         window.removeEventListener('pointermove', this.boundResizeMove);
         window.removeEventListener('pointerup', this.boundStopResize);
+    }
+
+    #getNormalizedPoint(event) {
+        const rect = this.canvasArea.getBoundingClientRect();
+        const zoomScale = parseFloat(this.canvasArea.dataset.zoomScale || '1');
+        const zoomOffsetX = parseFloat(this.canvasArea.dataset.zoomOffsetX || '0');
+        const zoomOffsetY = parseFloat(this.canvasArea.dataset.zoomOffsetY || '0');
+        const relX = event.clientX - rect.left;
+        const relY = event.clientY - rect.top;
+        return {
+            x: (relX - zoomOffsetX) / zoomScale,
+            y: (relY - zoomOffsetY) / zoomScale
+        };
     }
 }
 

@@ -157,6 +157,7 @@ export class ChassisRenderer {
 
     draw() {
         const state = this.stateManager.getState();
+        const showChassisControls = this.layerController.isActive('chassis');
         this.drawingGroup.innerHTML = '';
         this.hideLineMenu();
         this.segmentInfoMap.clear();
@@ -268,59 +269,60 @@ export class ChassisRenderer {
         frontBumperLine.setAttribute('stroke-width', '2');
         this.drawingGroup.appendChild(frontBumperLine);
 
-        const frontOverhangDot = this.createOverhangAnchorDot(frontTipPoint.x, frontTipPoint.y, 'front');
-        this.drawingGroup.appendChild(frontOverhangDot);
+        if (showChassisControls) {
+            const frontOverhangDot = this.createOverhangAnchorDot(frontTipPoint.x, frontTipPoint.y, 'front');
+            this.drawingGroup.appendChild(frontOverhangDot);
+        }
 
         const frontFaceBreakPos = this.getPointPosition('frontFaceBreak', frontWheelX, rearWheelX, wheelY, state);
         const breakPointX = frontFaceBreakPos.x;
         const breakPointY = frontFaceBreakPos.y;
 
-        const anchorDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        anchorDot.setAttribute('cx', breakPointX);
-        anchorDot.setAttribute('cy', breakPointY);
-        anchorDot.setAttribute('r', DOT_RADIUS.toString());
-        anchorDot.setAttribute('fill', BODY_POINT_CONFIG.frontFaceBreak.color);
-        anchorDot.setAttribute('stroke', 'none');
-        anchorDot.setAttribute('class', 'interactive-anchor');
-        anchorDot.style.cursor = 'pointer';
-        anchorDot.style.transition = 'r 0.2s ease';
+        if (showChassisControls) {
+            const anchorDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            anchorDot.setAttribute('cx', breakPointX);
+            anchorDot.setAttribute('cy', breakPointY);
+            anchorDot.setAttribute('r', DOT_RADIUS.toString());
+            anchorDot.setAttribute('fill', BODY_POINT_CONFIG.frontFaceBreak.color);
+            anchorDot.setAttribute('stroke', 'none');
+            anchorDot.setAttribute('class', 'interactive-anchor');
+            anchorDot.style.cursor = 'pointer';
+            anchorDot.style.transition = 'r 0.2s ease';
 
-        anchorDot.addEventListener('mouseenter', () => {
-            this.setDotVisualState(anchorDot, true);
-            this.showPointTooltip('frontFaceBreak', parseFloat(anchorDot.getAttribute('cx')), parseFloat(anchorDot.getAttribute('cy')));
-        });
-        anchorDot.addEventListener('mouseleave', () => {
-            if (!this.isDraggingFrontBreak) {
-                this.setDotVisualState(anchorDot, false);
-                this.hidePointTooltip('frontFaceBreak');
-            }
-        });
-        anchorDot.addEventListener('mousedown', (e) => {
-            if (!this.layerController.isActive('chassis')) return;
-            const tireRadiusPxCurrent = (state.tireDiameter / 2) * SCALE;
-            const wheelBasePxCurrent = state.wheelBase * SCALE;
-            const localFrontWheelX = CENTER_X - (wheelBasePxCurrent / 2);
-            const localRearWheelX = CENTER_X + (wheelBasePxCurrent / 2);
-            const localWheelY = GROUND_Y - tireRadiusPxCurrent;
-            const referenceX = this.getReferenceX(BODY_POINT_CONFIG.frontFaceBreak.reference, localFrontWheelX, localRearWheelX);
-            const currentBreakPointX = referenceX - (state.frontFaceBreakX * SCALE);
-            const currentBreakPointY = localWheelY - (state.frontFaceBreakY * SCALE);
+            anchorDot.addEventListener('mouseenter', () => {
+                this.setDotVisualState(anchorDot, true);
+                this.showPointTooltip('frontFaceBreak', parseFloat(anchorDot.getAttribute('cx')), parseFloat(anchorDot.getAttribute('cy')));
+            });
+            anchorDot.addEventListener('mouseleave', () => {
+                if (!this.isDraggingFrontBreak) {
+                    this.setDotVisualState(anchorDot, false);
+                    this.hidePointTooltip('frontFaceBreak');
+                }
+            });
+            anchorDot.addEventListener('mousedown', (e) => {
+                if (!this.layerController.isActive('chassis')) return;
+                const tireRadiusPxCurrent = (state.tireDiameter / 2) * SCALE;
+                const wheelBasePxCurrent = state.wheelBase * SCALE;
+                const localFrontWheelX = CENTER_X - (wheelBasePxCurrent / 2);
+                const localRearWheelX = CENTER_X + (wheelBasePxCurrent / 2);
+                const localWheelY = GROUND_Y - tireRadiusPxCurrent;
+                const referenceX = this.getReferenceX(BODY_POINT_CONFIG.frontFaceBreak.reference, localFrontWheelX, localRearWheelX);
+                const currentBreakPointX = referenceX - (state.frontFaceBreakX * SCALE);
+                const currentBreakPointY = localWheelY - (state.frontFaceBreakY * SCALE);
 
-            const svgEl = this.svg;
-            const pt = svgEl.createSVGPoint();
-            pt.x = e.clientX;
-            pt.y = e.clientY;
-            const svgP = pt.matrixTransform(svgEl.getScreenCTM().inverse());
+                const svgP = this.getSvgPointFromEvent(e);
+                if (!svgP) return;
 
-            this.isDraggingFrontBreak = true;
-            this.dragOffsetX = svgP.x - currentBreakPointX;
-            this.dragOffsetY = svgP.y - currentBreakPointY;
-            this.setDotVisualState(anchorDot, true);
-            this.showPointTooltip('frontFaceBreak', currentBreakPointX, currentBreakPointY);
-            e.preventDefault();
-            e.stopPropagation();
-        });
-        this.drawingGroup.appendChild(anchorDot);
+                this.isDraggingFrontBreak = true;
+                this.dragOffsetX = svgP.x - currentBreakPointX;
+                this.dragOffsetY = svgP.y - currentBreakPointY;
+                this.setDotVisualState(anchorDot, true);
+                this.showPointTooltip('frontFaceBreak', currentBreakPointX, currentBreakPointY);
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            this.drawingGroup.appendChild(anchorDot);
+        }
 
         const createDraggableDot = (x, y, pointName) => {
             const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -359,11 +361,8 @@ export class ChassisRenderer {
                 const currentDotX = referenceX - (state[pointConfig.xKey] * SCALE);
                 const currentDotY = localWheelY - (state[pointConfig.yKey] * SCALE);
 
-                const svgEl = this.svg;
-                const pt = svgEl.createSVGPoint();
-                pt.x = e.clientX;
-                pt.y = e.clientY;
-                const svgP = pt.matrixTransform(svgEl.getScreenCTM().inverse());
+                const svgP = this.getSvgPointFromEvent(e);
+                if (!svgP) return;
 
                 this.bodyDragOffsetX = svgP.x - currentDotX;
                 this.bodyDragOffsetY = svgP.y - currentDotY;
@@ -402,8 +401,10 @@ export class ChassisRenderer {
         rearBumperLine.setAttribute('stroke-width', '2');
         this.drawingGroup.appendChild(rearBumperLine);
 
-        const rearOverhangDot = this.createOverhangAnchorDot(rearTipPoint.x, rearTipPoint.y, 'rear');
-        this.drawingGroup.appendChild(rearOverhangDot);
+        if (showChassisControls) {
+            const rearOverhangDot = this.createOverhangAnchorDot(rearTipPoint.x, rearTipPoint.y, 'rear');
+            this.drawingGroup.appendChild(rearOverhangDot);
+        }
 
         const pointMap = {
             frontTip: frontTipPoint,
@@ -439,16 +440,19 @@ export class ChassisRenderer {
         this.drawingGroup.appendChild(bodyProfilePath);
         this.bodyProfilePathElement = bodyProfilePath;
 
-        this.drawingGroup.appendChild(createDraggableDot(bonnetEndPx.x, bonnetEndPx.y, 'bonnetEnd'));
-        this.drawingGroup.appendChild(createDraggableDot(windowEndPx.x, windowEndPx.y, 'windowEnd'));
-        this.drawingGroup.appendChild(createDraggableDot(rooftopEndPx.x, rooftopEndPx.y, 'rooftopEnd'));
-        this.drawingGroup.appendChild(createDraggableDot(rearWindowEndPx.x, rearWindowEndPx.y, 'rearWindowEnd'));
-        this.drawingGroup.appendChild(createDraggableDot(bumperEndPx.x, bumperEndPx.y, 'bumperEnd'));
+        if (showChassisControls) {
+            this.drawingGroup.appendChild(createDraggableDot(bonnetEndPx.x, bonnetEndPx.y, 'bonnetEnd'));
+            this.drawingGroup.appendChild(createDraggableDot(windowEndPx.x, windowEndPx.y, 'windowEnd'));
+            this.drawingGroup.appendChild(createDraggableDot(rooftopEndPx.x, rooftopEndPx.y, 'rooftopEnd'));
+            this.drawingGroup.appendChild(createDraggableDot(rearWindowEndPx.x, rearWindowEndPx.y, 'rearWindowEnd'));
+            this.drawingGroup.appendChild(createDraggableDot(bumperEndPx.x, bumperEndPx.y, 'bumperEnd'));
+            this.renderSegmentControls(bodySegments);
+        } else if (this.overlayGroup) {
+            this.overlayGroup.innerHTML = '';
+        }
 
-        this.renderSegmentControls(bodySegments);
-
-        this.drawTire(rearWheelX, wheelY, tireRadiusPx, 'rear');
-        this.drawTire(frontWheelX, wheelY, tireRadiusPx, 'front');
+        this.drawTire(rearWheelX, wheelY, tireRadiusPx, 'rear', showChassisControls);
+        this.drawTire(frontWheelX, wheelY, tireRadiusPx, 'front', showChassisControls);
 
         const groundLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         groundLine.setAttribute('x1', 0);
@@ -490,7 +494,7 @@ export class ChassisRenderer {
         return dot;
     }
 
-    drawTire(cx, cy, r, position = 'front') {
+    drawTire(cx, cy, r, position = 'front', showAxleHandle = true) {
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -501,22 +505,24 @@ export class ChassisRenderer {
         circle.setAttribute('stroke', 'none');
         group.appendChild(circle);
 
-        const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        center.setAttribute('cx', cx);
-        center.setAttribute('cy', cy);
-        center.setAttribute('r', DOT_RADIUS.toString());
-        center.setAttribute('fill', position === 'front' ? COLOR_FRONT_POINT : COLOR_REAR_POINT);
-        center.setAttribute('stroke', 'none');
-        center.style.cursor = 'ew-resize';
-        center.addEventListener('mousedown', (event) => this.startAxleDrag(position, event, cx, center));
-        center.addEventListener('mouseenter', () => this.setDotVisualState(center, true));
-        center.addEventListener('mouseleave', () => {
-            if (this.isDraggingAxle !== position) {
-                this.setDotVisualState(center, false);
-            }
-        });
-        this.setDotVisualState(center, false);
-        group.appendChild(center);
+        if (showAxleHandle) {
+            const center = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            center.setAttribute('cx', cx);
+            center.setAttribute('cy', cy);
+            center.setAttribute('r', DOT_RADIUS.toString());
+            center.setAttribute('fill', position === 'front' ? COLOR_FRONT_POINT : COLOR_REAR_POINT);
+            center.setAttribute('stroke', 'none');
+            center.style.cursor = 'ew-resize';
+            center.addEventListener('mousedown', (event) => this.startAxleDrag(position, event, cx, center));
+            center.addEventListener('mouseenter', () => this.setDotVisualState(center, true));
+            center.addEventListener('mouseleave', () => {
+                if (this.isDraggingAxle !== position) {
+                    this.setDotVisualState(center, false);
+                }
+            });
+            this.setDotVisualState(center, false);
+            group.appendChild(center);
+        }
 
         this.drawingGroup.appendChild(group);
     }
@@ -555,12 +561,8 @@ export class ChassisRenderer {
 
     startAxleDrag(position, event, axleX, centerElement) {
         if (!this.layerController.isActive('chassis')) return;
-        const ctm = this.svg.getScreenCTM();
-        if (!ctm) return;
-        const pt = this.svg.createSVGPoint();
-        pt.x = event.clientX;
-        pt.y = event.clientY;
-        const svgCoords = pt.matrixTransform(ctm.inverse());
+        const svgCoords = this.getSvgPointFromEvent(event);
+        if (!svgCoords) return;
         this.isDraggingAxle = position;
         this.axleDragOffsetX = svgCoords.x - axleX;
         this.setDotVisualState(centerElement, true);
@@ -580,12 +582,8 @@ export class ChassisRenderer {
             return;
         }
 
-        const ctm = this.svg.getScreenCTM();
-        if (!ctm) return;
-        const svgPoint = this.svg.createSVGPoint();
-        svgPoint.x = e.clientX;
-        svgPoint.y = e.clientY;
-        const svgCoords = svgPoint.matrixTransform(ctm.inverse());
+        const svgCoords = this.getSvgPointFromEvent(e);
+        if (!svgCoords) return;
         const state = this.stateManager.getState();
 
         if (this.draggingControlPointHandle) {

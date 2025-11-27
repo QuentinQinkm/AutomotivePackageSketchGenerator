@@ -206,33 +206,40 @@
 
             <main class="canvas-container">
                 <div class="canvas-area" id="canvasArea">
-                    <div class="image-overlay-wrapper" id="imageOverlayWrapper">
-                        <div class="image-frame" id="imageFrame">
-                            <img id="overlayImage" alt="Reference overlay">
-                            <div class="resize-handle" id="resizeHandle"></div>
-                        </div>
-                    </div>
-                    <div class="bodyandhead-parent">
-                        <img class="bodyandhead-icon" src="HumanFigure/BodyAndHead.svg" alt="body and head">
-                        <img class="big-leg-icon" src="HumanFigure/Big Leg.svg" alt="big leg">
-                        <img class="bigarm-icon" src="HumanFigure/BigArm.svg" alt="big arm">
-                        <img class="small-leg-icon" src="HumanFigure/Small Leg.svg" alt="small leg">
-                        <img class="small-arm-icon" src="HumanFigure/Small Arm.svg" alt="small arm">
-                        <div class="hip-joint-parent">
-                            <div class="hip-joint"></div>
-                            <div class="elbow"></div>
-                            <div class="shoulder-joint"></div>
-                            <div class="knee"></div>
-                            <div class="hand-anchor"></div>
-                            <div class="bottom-foot"></div>
-                            <div class="top-head"></div>
-                            <div class="heel"></div>
-                        </div>
-                    </div>
                     <svg id="carCanvas" viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg">
                         <!-- Elements will be drawn here by JS -->
                         <g id="drawingGroup"></g>
                     </svg>
+                    <div class="canvas-content" id="canvasContent">
+                        <div class="image-overlay-wrapper" id="imageOverlayWrapper">
+                            <div class="image-frame" id="imageFrame">
+                                <img id="overlayImage" alt="Reference overlay">
+                                <div class="resize-handle" id="resizeHandle"></div>
+                            </div>
+                        </div>
+                        <div class="bodyandhead-parent">
+                            <div class="bodyandhead-icon" data-inline-svg="HumanFigure/BodyAndHead.svg"
+                                aria-label="body and head"></div>
+                            <div class="big-leg-icon" data-inline-svg="HumanFigure/Big Leg.svg" aria-label="big leg">
+                            </div>
+                            <div class="bigarm-icon" data-inline-svg="HumanFigure/BigArm.svg" aria-label="big arm">
+                            </div>
+                            <div class="small-leg-icon" data-inline-svg="HumanFigure/Small Leg.svg"
+                                aria-label="small leg"></div>
+                            <div class="small-arm-icon" data-inline-svg="HumanFigure/Small Arm.svg"
+                                aria-label="small arm"></div>
+                            <div class="hip-joint-parent">
+                                <div class="hip-joint"></div>
+                                <div class="elbow"></div>
+                                <div class="shoulder-joint"></div>
+                                <div class="knee"></div>
+                                <div class="hand-anchor"></div>
+                                <div class="bottom-foot"></div>
+                                <div class="top-head"></div>
+                                <div class="heel"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
