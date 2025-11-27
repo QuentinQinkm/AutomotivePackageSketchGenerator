@@ -125,7 +125,16 @@ export class StateManager {
     }
 
     setState(partial, { silent = false } = {}) {
-        Object.assign(this.state, partial);
+        if (!partial || typeof partial !== 'object') return;
+
+        Object.entries(partial).forEach(([key, value]) => {
+            if (value === undefined) return;
+            this.state[key] = value;
+            this.#syncInputValue(key, value);
+        });
+
+        this.#syncValueDisplays();
+
         if (!silent) {
             this.notify();
         }
@@ -246,6 +255,21 @@ export class StateManager {
         const points = this.state.bodyControlPoints[segmentId];
         if (!points) return null;
         return points.find((p) => p.id === pointId);
+    }
+
+    #syncInputValue(key, value) {
+        if (!this.inputs || !this.inputs[key]) return;
+        const input = this.inputs[key];
+
+        if (input.type === 'checkbox') {
+            input.checked = Boolean(value);
+            return;
+        }
+
+        // Avoid fighting the user's active edits
+        if (document.activeElement === input) return;
+
+        input.value = value != null ? value.toString() : '';
     }
 }
 

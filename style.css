@@ -159,7 +159,7 @@ body {
 }
 
 .canvas-area.editing-image .canvas-content {
-    pointer-events: auto;
+    pointer-events: none;
 }
 
 .image-toolbar {
@@ -288,12 +288,11 @@ svg {
 }
 
 .canvas-area.editing-image .image-overlay-wrapper {
-    z-index: 2;
     pointer-events: auto;
 }
 
-.canvas-area.editing-image svg {
-    z-index: 0;
+.canvas-area.editing-image svg * {
+    pointer-events: none;
 }
 
 .image-overlay-wrapper {
