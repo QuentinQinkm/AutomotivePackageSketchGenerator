@@ -208,7 +208,9 @@ export class SmartAdjuster {
     updateDisplay() {
         const value = this.stateManager.state[this.paramName];
         if (value !== undefined) {
-            this.valueDisplay.textContent = value;
+            // Determine decimal places based on step
+            const decimals = (this.step.toString().split('.')[1] || '').length;
+            this.valueDisplay.textContent = value.toFixed(decimals);
         }
     }
 }

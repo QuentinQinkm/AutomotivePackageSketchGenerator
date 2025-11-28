@@ -139,14 +139,16 @@ export class CanvasZoomController {
         const translateX = letterboxOffsetX - (this.panX * renderScale * this.zoom);
         const translateY = letterboxOffsetY - (this.panY * renderScale * this.zoom);
 
+        const totalScale = this.zoom * renderScale;
+
         this.overlayLayers.forEach((layer) => {
             layer.style.transformOrigin = '0 0';
-            layer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${this.zoom})`;
+            layer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${totalScale})`;
         });
 
         const isZoomed = this.zoom > this.minZoom + 0.001;
         this.canvasArea.classList.toggle('is-zoomed', isZoomed);
-        this.canvasArea.dataset.zoomScale = this.zoom.toString();
+        this.canvasArea.dataset.zoomScale = totalScale.toString();
         this.canvasArea.dataset.zoomOffsetX = translateX.toString();
         this.canvasArea.dataset.zoomOffsetY = translateY.toString();
     }

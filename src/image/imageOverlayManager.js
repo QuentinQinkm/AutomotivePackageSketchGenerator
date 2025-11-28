@@ -1,4 +1,4 @@
-import { MIN_FRAME_HEIGHT, MIN_FRAME_WIDTH } from '../constants.js';
+import { CENTER_X, GROUND_Y, MIN_FRAME_HEIGHT, MIN_FRAME_WIDTH, SCALE } from '../constants.js';
 
 export class ImageOverlayManager {
     constructor({
@@ -12,6 +12,11 @@ export class ImageOverlayManager {
         deleteImageBtn,
         imageUploadInput,
         flipImageBtn,
+        alignButton,
+        alignCancelButton,
+        alignTopBar,
+        alignInput,
+        alignConfirmBtn,
         stateManager,
         layerController = null
     }) {
@@ -25,16 +30,47 @@ export class ImageOverlayManager {
         this.deleteImageBtn = deleteImageBtn;
         this.imageUploadInput = imageUploadInput;
         this.flipImageBtn = flipImageBtn;
+        this.alignButton = alignButton;
+        this.alignCancelButton = alignCancelButton;
+        this.alignTopBar = alignTopBar;
+        this.alignInput = alignInput;
+        this.alignConfirmButton = alignConfirmBtn;
         this.stateManager = stateManager;
         this.layerController = layerController;
+
+        this.alignDotsLayer = document.createElement('div');
+        this.alignDotsLayer.className = 'align-dots-layer';
+        if (this.resizeHandle && this.resizeHandle.parentNode === this.imageFrame) {
+            this.imageFrame.insertBefore(this.alignDotsLayer, this.resizeHandle);
+        } else {
+            this.imageFrame.appendChild(this.alignDotsLayer);
+        }
 
         this.hasImageOverlay = false;
         this.imageFlipped = false;
         this.imageRotation = 0;
         this.dragState = null;
         this.resizeState = null;
+        this.alignDots = [];
+        this.isAlignModeActive = false;
+        this.draggingAlignDot = null;
+
+        const wheelBaseInput = this.stateManager.inputs?.wheelBase;
+        const minWheelBase = wheelBaseInput ? parseInt(wheelBaseInput.min, 10) : 1000;
+        const maxWheelBase = wheelBaseInput ? parseInt(wheelBaseInput.max, 10) : 5000;
+        this.alignWheelBaseBounds = {
+            min: Number.isFinite(minWheelBase) ? minWheelBase : 1000,
+            max: Number.isFinite(maxWheelBase) ? maxWheelBase : 5000
+        };
+
+        if (this.alignInput) {
+            this.alignInput.min = this.alignWheelBaseBounds.min;
+            this.alignInput.max = this.alignWheelBaseBounds.max;
+        }
 
         this.#bindEvents();
+        this.#bindAlignEvents();
+        this.#setAlignButtonAvailability(false);
         this.#updateImageEditingState();
         if (this.layerController) {
             this.layerController.onChange(() => this.#updateImageEditingState());
@@ -66,6 +102,8 @@ export class ImageOverlayManager {
             this.hasImageOverlay = false;
             this.overlayImage.src = '';
             this.imageFrame.classList.remove('has-image');
+            this.exitAlignMode(true);
+            this.#setAlignButtonAvailability(false);
 
             // Reset state
             this.imageRotation = 0;
@@ -109,9 +147,43 @@ export class ImageOverlayManager {
         });
     }
 
+    #bindAlignEvents() {
+        if (this.alignButton) {
+            this.alignButton.addEventListener('click', () => {
+                if (this.alignButton.disabled) return;
+                this.enterAlignMode();
+            });
+        }
+
+        if (this.alignCancelButton) {
+            this.alignCancelButton.addEventListener('click', () => this.exitAlignMode(true));
+        }
+
+        if (this.alignInput) {
+            this.alignInput.addEventListener('input', () => this.#handleAlignInputChange());
+            this.alignInput.addEventListener('blur', () => {
+                let value = parseInt(this.alignInput.value, 10);
+                if (Number.isFinite(value)) {
+                    value = Math.round(value / 50) * 50;
+                    // Clamp
+                    value = Math.max(this.alignWheelBaseBounds.min, Math.min(this.alignWheelBaseBounds.max, value));
+                    this.alignInput.value = value;
+                    this.#handleAlignInputChange();
+                }
+            });
+        }
+
+        if (this.alignConfirmButton) {
+            this.alignConfirmButton.addEventListener('click', () => this.confirmAlignment());
+        }
+
+        this.imageFrame.addEventListener('click', (event) => this.#handleAlignClick(event));
+    }
+
     #updateImageEditingState() {
         const imageLayerActive = this.#isImageLayerActive();
         const canEditImage = this.hasImageOverlay && imageLayerActive;
+        const isEditing = canEditImage || this.isAlignModeActive;
 
         // Toggle between Upload and Edit states
         if (this.hasImageOverlay) {
@@ -122,8 +194,45 @@ export class ImageOverlayManager {
             this.editState.classList.add('hidden');
         }
 
-        this.imageFrame.classList.toggle('editing', canEditImage);
-        this.canvasArea.classList.toggle('editing-image', canEditImage);
+        this.imageFrame.classList.toggle('editing', isEditing);
+        this.canvasArea.classList.toggle('editing-image', isEditing);
+    }
+
+    enterAlignMode() {
+        if (!this.hasImageOverlay || this.isAlignModeActive) return;
+        this.isAlignModeActive = true;
+        document.body.classList.add('align-mode');
+        this.alignCancelButton?.classList.remove('hidden');
+        this.#clearAlignDots();
+        this.alignTopBar?.classList.add('hidden');
+        if (this.alignInput) {
+            this.alignInput.value = '';
+        }
+        if (this.alignConfirmButton) {
+            this.alignConfirmButton.disabled = true;
+        }
+        this.#updateAlignWorkflowState();
+        this.#updateImageEditingState();
+    }
+
+    exitAlignMode(resetDots = false) {
+        if (!this.isAlignModeActive && !resetDots) return;
+        this.isAlignModeActive = false;
+        document.body.classList.remove('align-mode');
+        this.alignCancelButton?.classList.add('hidden');
+        this.alignTopBar?.classList.add('hidden');
+        if (resetDots) {
+            this.#clearAlignDots();
+        }
+        this.#stopAlignDotDrag();
+        if (this.alignInput) {
+            this.alignInput.value = '';
+        }
+        if (this.alignConfirmButton) {
+            this.alignConfirmButton.disabled = true;
+        }
+        this.#updateAlignWorkflowState();
+        this.#updateImageEditingState();
     }
 
     #handleImageFile(file) {
@@ -135,6 +244,7 @@ export class ImageOverlayManager {
                 this.imageFrame.classList.add('has-image');
                 this.aspectRatio = this.overlayImage.naturalWidth / this.overlayImage.naturalHeight;
                 this.#resetImageFrame();
+                this.#setAlignButtonAvailability(true);
 
                 // Initialize state
                 this.stateManager.setState({
@@ -151,13 +261,27 @@ export class ImageOverlayManager {
     }
 
     #resetImageFrame() {
-        const parentWidth = this.canvasArea.clientWidth;
-        const parentHeight = this.canvasArea.clientHeight;
-        // Start with a reasonable width, e.g., 50% of parent
-        let width = Math.max(MIN_FRAME_WIDTH, parentWidth * 0.5);
+        // Calculate logical center based on current viewport
+        const rect = this.canvasArea.getBoundingClientRect();
+        const zoomScale = parseFloat(this.canvasArea.dataset.zoomScale || '1');
+        const zoomOffsetX = parseFloat(this.canvasArea.dataset.zoomOffsetX || '0');
+        const zoomOffsetY = parseFloat(this.canvasArea.dataset.zoomOffsetY || '0');
+
+        // Visible center in screen coordinates (relative to canvasArea)
+        const visibleCenterX = rect.width / 2;
+        const visibleCenterY = rect.height / 2;
+
+        // Convert to logical coordinates
+        const logicalCenterX = (visibleCenterX - zoomOffsetX) / zoomScale;
+        const logicalCenterY = (visibleCenterY - zoomOffsetY) / zoomScale;
+
+        // Determine initial size (logical pixels)
+        // We want it to be a reasonable size relative to the viewport, say 50% of visible width
+        const visibleWidthLogical = rect.width / zoomScale;
+        let width = Math.max(MIN_FRAME_WIDTH, visibleWidthLogical * 0.5);
         let height = width / this.aspectRatio;
 
-        // Ensure height is not too small, adjust width if necessary
+        // Ensure height is not too small
         if (height < MIN_FRAME_HEIGHT) {
             height = MIN_FRAME_HEIGHT;
             width = height * this.aspectRatio;
@@ -165,17 +289,344 @@ export class ImageOverlayManager {
 
         this.imageFrame.style.width = `${width}px`;
         this.imageFrame.style.height = `${height}px`;
-        this.imageFrame.style.left = `${(parentWidth - width) / 2}px`;
-        this.imageFrame.style.top = `${(parentHeight - height) / 2}px`;
+
+        // Center the frame on the logical center
+        this.imageFrame.style.left = `${logicalCenterX - width / 2}px`;
+        this.imageFrame.style.top = `${logicalCenterY - height / 2}px`;
     }
 
     #applyImageTransform() {
         const scaleX = this.imageFlipped ? -1 : 1;
-        this.overlayImage.style.transform = `scaleX(${scaleX}) rotate(${this.imageRotation}deg)`;
+        // Round rotation to nearest 0.5
+        const roundedRotation = Math.round(this.imageRotation * 2) / 2;
+        this.overlayImage.style.transform = `scaleX(${scaleX}) rotate(${roundedRotation}deg)`;
+
+        // Update input if it exists and value differs significantly
+        const rotationInput = document.getElementById('imageRotation');
+        if (rotationInput && Math.abs(parseFloat(rotationInput.value) - roundedRotation) > 0.1) {
+            rotationInput.value = roundedRotation.toFixed(1);
+        }
+    }
+
+    #handleAlignClick(event) {
+        if (!this.isAlignModeActive || this.alignDots.length >= 2) return;
+        if (event.target.closest('.align-dot') || event.target === this.resizeHandle) return;
+        const point = this.#getNormalizedPoint(event);
+        if (!point) return;
+        const ratios = this.#convertPointToImageRatios(point);
+        if (!ratios) return;
+        this.#addAlignDot(ratios);
+    }
+
+    #convertPointToImageRatios(point) {
+        const width = this.imageFrame.offsetWidth || 0;
+        const height = this.imageFrame.offsetHeight || 0;
+        if (width <= 0 || height <= 0) return null;
+        const left = parseFloat(this.imageFrame.style.left) || 0;
+        const top = parseFloat(this.imageFrame.style.top) || 0;
+        const rawX = (point.x - left) / width;
+        const rawY = (point.y - top) / height;
+        if (!Number.isFinite(rawX) || !Number.isFinite(rawY)) return null;
+        return {
+            x: Math.max(0, Math.min(1, rawX)),
+            y: Math.max(0, Math.min(1, rawY))
+        };
+    }
+
+    #addAlignDot({ x, y }) {
+        if (this.alignDots.length >= 2) return;
+        const dotElement = document.createElement('div');
+        dotElement.className = 'align-dot';
+        this.alignDotsLayer.appendChild(dotElement);
+        const dotData = { element: dotElement, xRatio: x, yRatio: y };
+        this.alignDots.push(dotData);
+        this.#positionAlignDot(dotData);
+        dotElement.addEventListener('pointerdown', (event) => this.#startAlignDotDrag(dotData, event));
+        this.#updateAlignWorkflowState();
+    }
+
+    #positionAlignDot(dotData) {
+        const width = this.imageFrame.offsetWidth || 0;
+        const height = this.imageFrame.offsetHeight || 0;
+        dotData.element.style.left = `${dotData.xRatio * width}px`;
+        dotData.element.style.top = `${dotData.yRatio * height}px`;
+    }
+
+    #refreshAlignDots() {
+        this.alignDots.forEach((dot) => this.#positionAlignDot(dot));
+    }
+
+    #startAlignDotDrag(dotData, event) {
+        if (!this.isAlignModeActive) return;
+        event.preventDefault();
+        event.stopPropagation();
+        this.draggingAlignDot = dotData;
+        this.boundAlignDotMove = (e) => this.#handleAlignDotDragMove(e);
+        this.boundAlignDotUp = () => this.#stopAlignDotDrag();
+        window.addEventListener('pointermove', this.boundAlignDotMove);
+        window.addEventListener('pointerup', this.boundAlignDotUp);
+    }
+
+    #handleAlignDotDragMove(event) {
+        if (!this.draggingAlignDot) return;
+        const point = this.#getNormalizedPoint(event);
+        if (!point) return;
+        const ratios = this.#convertPointToImageRatios(point);
+        if (!ratios) return;
+        this.draggingAlignDot.xRatio = ratios.x;
+        this.draggingAlignDot.yRatio = ratios.y;
+        this.#positionAlignDot(this.draggingAlignDot);
+    }
+
+    #stopAlignDotDrag() {
+        if (!this.draggingAlignDot) return;
+        window.removeEventListener('pointermove', this.boundAlignDotMove);
+        window.removeEventListener('pointerup', this.boundAlignDotUp);
+        this.draggingAlignDot = null;
+    }
+
+    #updateAlignWorkflowState() {
+        if (!this.alignTopBar) return;
+        if (this.isAlignModeActive && this.alignDots.length === 2) {
+            this.alignTopBar.classList.remove('hidden');
+            if (this.alignInput && !this.alignInput.value) {
+                this.alignInput.value = this.stateManager.state?.wheelBase ?? '';
+            }
+        } else {
+            this.alignTopBar.classList.add('hidden');
+            if (this.alignInput) {
+                this.alignInput.value = '';
+            }
+        }
+        if (this.alignConfirmButton) {
+            this.alignConfirmButton.disabled = true;
+        }
+        this.#handleAlignInputChange();
+    }
+
+    #handleAlignInputChange() {
+        if (!this.alignConfirmButton || !this.alignInput) return;
+        let value = parseInt(this.alignInput.value, 10);
+
+        // Round to nearest 50
+        if (Number.isFinite(value)) {
+            // Only round if the user has stopped typing? 
+            // Or just validate? 
+            // The user asked to "make the input round to the nearest 50 interval".
+            // If I round while typing, it might be annoying.
+            // But usually "input round to" means the final value or the step.
+            // I will enforce step=50 in HTML and validate here.
+            // Actually, I'll round the value used for validation/confirmation, 
+            // but maybe not the input value immediately while typing unless on blur.
+            // Let's add a blur listener for rounding the input display.
+        }
+
+        const isValid = this.isAlignModeActive &&
+            this.alignDots.length === 2 &&
+            Number.isFinite(value) &&
+            value >= this.alignWheelBaseBounds.min &&
+            value <= this.alignWheelBaseBounds.max;
+        this.alignConfirmButton.disabled = !isValid;
+    }
+
+    confirmAlignment() {
+        if (!this.isAlignModeActive || this.alignDots.length < 2 || !this.alignInput) return;
+        const wheelBaseValue = parseInt(this.alignInput.value, 10);
+        if (!Number.isFinite(wheelBaseValue) ||
+            wheelBaseValue < this.alignWheelBaseBounds.min ||
+            wheelBaseValue > this.alignWheelBaseBounds.max) {
+            return;
+        }
+
+        this.stateManager.setState({ wheelBase: wheelBaseValue });
+        this.#applyAlignmentTransform(wheelBaseValue);
+        this.exitAlignMode(true);
+    }
+
+    #applyAlignmentTransform(wheelBaseValue) {
+        if (this.alignDots.length < 2) return;
+        const orderedDots = this.#getOrderedAlignDots();
+        if (!orderedDots) return;
+
+        // frontDot is the dot with smaller X (Left on screen)
+        // rearDot is the dot with larger X (Right on screen)
+        const { frontDot, rearDot } = orderedDots;
+
+        const currentWidth = this.imageFrame.offsetWidth || 0;
+        const currentHeight = this.imageFrame.offsetHeight || 0;
+        if (currentWidth === 0 || currentHeight === 0) return;
+
+        // 1. Get current dot positions in pixels relative to center of imageFrame
+        // These are "Screen Pixels" relative to the unrotated frame box
+        const center = { x: currentWidth / 2, y: currentHeight / 2 };
+        const frontPx = {
+            x: (frontDot.xRatio * currentWidth),
+            y: (frontDot.yRatio * currentHeight)
+        };
+        const rearPx = {
+            x: (rearDot.xRatio * currentWidth),
+            y: (rearDot.yRatio * currentHeight)
+        };
+
+        // 2. Calculate Current Visual Vector & Angle
+        const dx = rearPx.x - frontPx.x;
+        const dy = rearPx.y - frontPx.y;
+        const distPx = Math.hypot(dx, dy);
+
+        if (distPx < 1) return; // Avoid division by zero
+
+        // Angle of the line on screen. We want this to be 0 (Horizontal).
+        const currentAngleRad = Math.atan2(dy, dx);
+        const currentAngleDeg = currentAngleRad * 180 / Math.PI;
+
+        // 3. Calculate New Rotation
+        // If we rotate the image by -currentAngleDeg, the visual line rotates by -currentAngleDeg, becoming 0.
+        // This works regardless of flip state because we are operating on the visual output.
+        const rotationCorrection = -currentAngleDeg;
+        let normalizedRotation = this.imageRotation + rotationCorrection;
+        // Round to nearest 0.5 to avoid long decimals
+        normalizedRotation = Math.round(normalizedRotation * 2) / 2;
+
+        // 4. Calculate New Scale
+        const targetWheelBasePx = wheelBaseValue * SCALE;
+        const scaleFactor = targetWheelBasePx / distPx;
+
+        const newWidth = currentWidth * scaleFactor;
+        const newHeight = currentHeight * scaleFactor;
+
+        if (newWidth < 1 || newHeight < 1) return;
+
+        // 5. Calculate New Positions of the Dots
+        // We need to know where the wheels will end up to position the frame.
+        // We map: Screen(Old) -> Source -> Screen(New)
+
+        const sx = this.imageFlipped ? -1 : 1;
+        const currentRotation = this.imageRotation;
+
+        // Map to Normalized Source (using OLD state)
+        const normFront = this.#toNormalizedSource(frontPx, center, currentWidth, currentHeight, sx, currentRotation);
+        const normRear = this.#toNormalizedSource(rearPx, center, currentWidth, currentHeight, sx, currentRotation);
+
+        // Map to Screen (using NEW state)
+        const newCenter = { x: newWidth / 2, y: newHeight / 2 };
+        const finalFrontPx = this.#fromNormalizedSource(normFront, newCenter, newWidth, newHeight, sx, normalizedRotation);
+        const finalRearPx = this.#fromNormalizedSource(normRear, newCenter, newWidth, newHeight, sx, normalizedRotation);
+
+        // 6. Apply Transformations
+        this.imageRotation = normalizedRotation;
+        this.stateManager.setState({ imageRotation: normalizedRotation });
+        this.#applyImageTransform();
+
+        this.imageFrame.style.width = `${newWidth}px`;
+        this.imageFrame.style.height = `${newHeight}px`;
+
+        // 7. Position the Frame
+        // Align the midpoint of the new dot positions to the target chassis center
+        const tireRadiusPx = (this.stateManager.state.tireDiameter / 2) * SCALE;
+        const wheelCenterY = GROUND_Y - tireRadiusPx;
+
+        const currentMidX = (finalFrontPx.x + finalRearPx.x) / 2;
+        const currentMidY = (finalFrontPx.y + finalRearPx.y) / 2;
+
+        const targetMidX = CENTER_X;
+        const targetMidY = wheelCenterY;
+
+        const offsetX = targetMidX - currentMidX;
+        const offsetY = targetMidY - currentMidY;
+
+        this.imageFrame.style.left = `${Math.round(offsetX)}px`;
+        this.imageFrame.style.top = `${Math.round(offsetY)}px`;
+
+        // 8. Update Align Dots to match the new image state
+        // The dots are children of the frame. If we don't update them, they will stay at the old relative positions,
+        // but the image content (wheels) has moved relative to the frame due to rotation/scale.
+        // We pin them to the new wheel positions.
+
+        frontDot.xRatio = finalFrontPx.x / newWidth;
+        frontDot.yRatio = finalFrontPx.y / newHeight;
+
+        rearDot.xRatio = finalRearPx.x / newWidth;
+        rearDot.yRatio = finalRearPx.y / newHeight;
+
+        this.#refreshAlignDots();
+    }
+
+    #toNormalizedSource(pointPx, center, width, height, scaleX, rotationDeg) {
+        // Inverse Transform Chain:
+        // Screen -> Un-Center -> Un-Rotate -> Un-Flip -> Un-Scale -> Normalized
+
+        const angleRad = rotationDeg * Math.PI / 180;
+        const dx = pointPx.x - center.x;
+        const dy = pointPx.y - center.y;
+
+        // 1. Un-Rotate
+        const cos = Math.cos(-angleRad);
+        const sin = Math.sin(-angleRad);
+        const unrotatedX = (dx * cos) - (dy * sin);
+        const unrotatedY = (dx * sin) + (dy * cos);
+
+        // 2. Un-Flip (Scale X)
+        // x' = x * sx  => x = x' / sx = x' * sx (since sx is 1 or -1)
+        const unscaledX = unrotatedX * scaleX;
+        const unscaledY = unrotatedY;
+
+        // 3. Un-Center (back to top-left origin of the image rect)
+        // The "Source" coordinates here are pixels relative to the image top-left
+        // But centered at (width/2, height/2)
+        const srcX = unscaledX + (width / 2);
+        const srcY = unscaledY + (height / 2);
+
+        // 4. Normalize
+        return {
+            x: srcX / width,
+            y: srcY / height
+        };
+    }
+
+    #fromNormalizedSource(normPoint, center, width, height, scaleX, rotationDeg) {
+        // Forward Transform Chain:
+        // Normalized -> Scale -> Center-Offset -> Flip -> Rotate -> Screen + Center
+
+        // 1. Denormalize to pixels (origin top-left)
+        const srcX = normPoint.x * width;
+        const srcY = normPoint.y * height;
+
+        // 2. Center Offset (relative to center)
+        const centeredX = srcX - (width / 2);
+        const centeredY = srcY - (height / 2);
+
+        // 3. Flip
+        const flippedX = centeredX * scaleX;
+        const flippedY = centeredY;
+
+        // 4. Rotate
+        const angleRad = rotationDeg * Math.PI / 180;
+        const cos = Math.cos(angleRad);
+        const sin = Math.sin(angleRad);
+
+        const rotatedX = (flippedX * cos) - (flippedY * sin);
+        const rotatedY = (flippedX * sin) + (flippedY * cos);
+
+        // 5. Screen Coordinates (relative to div top-left, so add center)
+        return {
+            x: rotatedX + center.x,
+            y: rotatedY + center.y
+        };
+    }
+
+    #setAlignButtonAvailability(enabled) {
+        if (!this.alignButton) return;
+        this.alignButton.disabled = !enabled;
+    }
+
+    #clearAlignDots() {
+        this.alignDots = [];
+        this.alignDotsLayer.innerHTML = '';
+        this.draggingAlignDot = null;
     }
 
     #startDrag(event) {
-        if (!this.hasImageOverlay || event.target === this.resizeHandle) return;
+        if (!this.hasImageOverlay || this.isAlignModeActive || event.target === this.resizeHandle) return;
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
         this.dragState = {
@@ -208,7 +659,7 @@ export class ImageOverlayManager {
     }
 
     #startResize(event) {
-        if (!this.hasImageOverlay) return;
+        if (!this.hasImageOverlay || this.isAlignModeActive) return;
         event.stopPropagation();
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
@@ -262,6 +713,17 @@ export class ImageOverlayManager {
             x: (relX - zoomOffsetX) / zoomScale,
             y: (relY - zoomOffsetY) / zoomScale
         };
+    }
+
+
+
+    #getOrderedAlignDots() {
+        if (this.alignDots.length < 2) return null;
+        const [dotA, dotB] = this.alignDots;
+        if (dotA.xRatio <= dotB.xRatio) {
+            return { frontDot: dotA, rearDot: dotB };
+        }
+        return { frontDot: dotB, rearDot: dotA };
     }
 
     #isImageLayerActive() {

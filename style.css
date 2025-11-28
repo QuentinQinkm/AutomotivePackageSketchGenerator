@@ -735,6 +735,83 @@ input[type=range]::-moz-range-thumb {
     color: #6f6f6f;
 }
 
+.align-top-bar {
+    position: absolute;
+    top: 27px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 21px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 30px;
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+    z-index: 1100;
+}
+
+.align-label {
+    font-size: 14px;
+    font-weight: 300;
+    color: #4a4a4a;
+}
+
+.align-input-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.align-input {
+    width: 140px;
+    border: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    background: transparent;
+    font-size: 16px;
+    font-weight: 300;
+    color: #000;
+    text-align: center;
+    padding: 4px 0;
+}
+
+.align-helper-text {
+    position: absolute;
+    top: 100%;
+    margin-top: 14px;
+    font-size: 12px;
+    color: #888;
+    font-weight: 300;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.align-input:focus {
+    outline: none;
+    border-bottom-color: #000;
+}
+
+.align-confirm-btn {
+    border: none;
+    background: #000;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 300;
+    letter-spacing: 0.01em;
+    padding: 6px 20px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.align-confirm-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
 .controls-infill {
     position: absolute;
     left: 0;
@@ -748,4 +825,79 @@ input[type=range]::-moz-range-thumb {
     pointer-events: none;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.align-cancel {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: none;
+    padding: 10px 32px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    z-index: 1200;
+    color: #000;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.align-dots-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+}
+
+.align-dots-layer {
+    pointer-events: none;
+}
+
+.align-dots-layer .align-dot {
+    pointer-events: auto;
+}
+
+.align-dot {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #2563eb;
+    border: 2px solid #fff;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: grab;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.align-dot:active {
+    cursor: grabbing;
+}
+
+body.align-mode #carCanvas,
+body.align-mode .canvas-content,
+body.align-mode #dimensionDisplay,
+body.align-mode .controls-infill,
+body.align-mode .layer-list,
+body.align-mode .chassis-controls-overlay,
+body.align-mode .driver-controls-overlay,
+body.align-mode .image-controls-overlay {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none !important;
+}
+
+body.align-mode .align-cancel {
+    display: block;
+}
+
+body.align-mode #alignTopBar:not(.hidden) {
+    display: flex;
+}
+
+body.align-mode #carCanvas {
+    transition: opacity 0.2s ease;
 }

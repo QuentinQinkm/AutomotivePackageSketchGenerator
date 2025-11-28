@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const canvasArea = document.getElementById('canvasArea');
     const canvasContent = document.getElementById('canvasContent');
     const imageOverlayWrapper = document.getElementById('imageOverlayWrapper');
+    const alignCancelBtn = document.getElementById('alignCancelBtn');
+    const alignTopBar = document.getElementById('alignTopBar');
+    const alignInput = document.getElementById('alignWheelBaseInput');
+    const alignConfirmBtn = document.getElementById('alignConfirmBtn');
+    const alignImageBtn = document.getElementById('alignImageBtn');
 
     const inputs = {
         tireDiameter: document.getElementById('tireDiameter'),
@@ -94,6 +99,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         deleteImageBtn: document.getElementById('deleteImageBtn'),
         imageUploadInput: document.getElementById('imageUploadInput'),
         flipImageBtn: document.getElementById('flipImageBtn'),
+        alignButton: alignImageBtn,
+        alignCancelButton: alignCancelBtn,
+        alignTopBar,
+        alignInput,
+        alignConfirmBtn,
         stateManager,
         layerController
     });

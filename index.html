@@ -198,6 +198,15 @@
                             <span class="dim-value" id="dimHeightVal">---- mm</span>
                         </div>
                     </div>
+                    <div id="alignTopBar" class="align-top-bar hidden">
+                        <label for="alignWheelBaseInput" class="align-label">Wheelbase</label>
+                        <div class="align-input-container">
+                            <input type="number" id="alignWheelBaseInput" class="align-input" placeholder="mm"
+                                step="50">
+                            <span class="align-helper-text">Rounded to nearest 50mm</span>
+                        </div>
+                        <button type="button" id="alignConfirmBtn" class="align-confirm-btn" disabled>Confirm</button>
+                    </div>
                     <div class="canvas-content" id="canvasContent">
                         <div class="bodyandhead-parent">
                             <div class="bodyandhead-icon" data-inline-svg="HumanFigure/BodyAndHead.svg"
@@ -222,6 +231,7 @@
                             </div>
                         </div>
                     </div>
+                    <button type="button" id="alignCancelBtn" class="align-cancel hidden">Cancel</button>
                 </div>
                 <div class="controls-infill" aria-hidden="true"></div>
                 <!-- Chassis Controls Overlay -->
@@ -297,10 +307,13 @@
                             <div class="smart-adjuster" data-param="imageOpacity" data-label="Transparency" data-min="0"
                                 data-max="100" data-step="5"></div>
                             <div class="smart-adjuster" data-param="imageRotation" data-label="Rotation" data-min="-45"
-                                data-max="45" data-step="1"></div>
+                                data-max="45" data-step="0.5"></div>
 
                             <div class="smart-button" id="flipImageBtn">
                                 <div class="button-label">Flip</div>
+                            </div>
+                            <div class="smart-button" id="alignImageBtn">
+                                <div class="button-label">Align</div>
                             </div>
 
                             <div class="smart-button delete" id="deleteImageBtn">
