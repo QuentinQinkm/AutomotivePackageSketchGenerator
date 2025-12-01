@@ -38,6 +38,9 @@ export class ImageOverlayManager {
         this.stateManager = stateManager;
         this.layerController = layerController;
 
+        this.profileBarContainer = document.getElementById('profileBarContainer');
+        this.profileControls = document.getElementById('profileControls');
+
         this.alignDotsLayer = document.createElement('div');
         this.alignDotsLayer.className = 'align-dots-layer';
         if (this.resizeHandle && this.resizeHandle.parentNode === this.imageFrame) {
@@ -106,8 +109,8 @@ export class ImageOverlayManager {
             // Reset state
             this.imageRotation = 0;
             this.imageFlipped = false;
-             this.imageScale = 100;
-             this.scaleBaseFrame = null;
+            this.imageScale = 100;
+            this.scaleBaseFrame = null;
             this.lastImageData = null;
             const emptyFrame = this.#getEmptyFrame();
             this.#applyFrameState(emptyFrame);
@@ -213,8 +216,16 @@ export class ImageOverlayManager {
         this.isAlignModeActive = true;
         document.body.classList.add('align-mode');
         this.alignCancelButton?.classList.remove('hidden');
+
+        // Hide profile UI
+        this.profileBarContainer?.classList.add('hidden');
+        this.profileControls?.classList.add('hidden');
+
         this.#clearAlignDots();
-        this.alignTopBar?.classList.add('hidden');
+
+        // Show align bar immediately
+        this.alignTopBar?.classList.remove('hidden');
+
         if (this.alignInput) {
             this.alignInput.value = '';
         }
@@ -231,6 +242,11 @@ export class ImageOverlayManager {
         document.body.classList.remove('align-mode');
         this.alignCancelButton?.classList.add('hidden');
         this.alignTopBar?.classList.add('hidden');
+
+        // Restore profile UI
+        this.profileBarContainer?.classList.remove('hidden');
+        this.profileControls?.classList.remove('hidden');
+
         if (resetDots) {
             this.#clearAlignDots();
         }
@@ -403,9 +419,13 @@ export class ImageOverlayManager {
 
     #updateAlignWorkflowState() {
         if (!this.alignTopBar) return;
-        if (this.isAlignModeActive && this.alignDots.length === 2) {
+
+        if (this.isAlignModeActive) {
+            // Always show top bar in align mode
             this.alignTopBar.classList.remove('hidden');
-            if (this.alignInput && !this.alignInput.value) {
+
+            // Auto-fill wheelbase if 2 dots are present and input is empty
+            if (this.alignDots.length === 2 && this.alignInput && !this.alignInput.value) {
                 this.alignInput.value = this.stateManager.state?.wheelBase ?? '';
             }
         } else {

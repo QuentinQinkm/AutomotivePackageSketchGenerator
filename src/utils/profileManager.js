@@ -162,6 +162,9 @@ export class ProfileManager {
 
                     const interpolatedPoint = { ...start }; // Copy base props (id, mode, etc.)
 
+                    // Ensure we use a mode that allows handles to be rendered if we are transitioning to/from a smooth state
+                    interpolatedPoint.mode = (start.mode !== 'hard' && target.mode === 'hard') ? start.mode : target.mode;
+
                     // Interpolate t
                     interpolatedPoint.t = start.t + (target.t - start.t) * ease;
 
