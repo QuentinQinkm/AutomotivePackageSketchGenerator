@@ -61,7 +61,7 @@ export class ProfileManager {
         this.animateToState(profile.data);
     }
 
-    animateToState(targetState, duration = 300) {
+    animateToState(targetState, duration = 800) {
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
@@ -69,6 +69,7 @@ export class ProfileManager {
 
         const startState = this.stateManager.getState();
         const startTime = performance.now();
+        const handleDuration = 500; // Handles finish faster
 
         // Identify numeric keys to interpolate
         const numericKeys = Object.keys(targetState).filter(key =>
@@ -87,13 +88,26 @@ export class ProfileManager {
             const sList = startPoints[segmentId] || [];
             const tList = targetPoints[segmentId] || [];
             const processedTargetIds = new Set();
+            const processedTargetIndices = new Set();
 
             // 1. Handle Start Points (Matching & Disappearing)
-            sList.forEach(sPoint => {
-                const tPoint = tList.find(p => p.id === sPoint.id);
+            sList.forEach((sPoint, sIndex) => {
+                // Try to find match by ID first
+                let tPoint = tList.find(p => p.id === sPoint.id);
+                let tIndex = tList.findIndex(p => p.id === sPoint.id);
+
+                // Fallback: If no ID match, try matching by index (if that index hasn't been matched yet)
+                if (!tPoint) {
+                    if (tList[sIndex] && !processedTargetIds.has(tList[sIndex].id)) {
+                        tPoint = tList[sIndex];
+                        tIndex = sIndex;
+                    }
+                }
+
                 if (tPoint) {
                     // Matching: Animate Start -> Target
                     processedTargetIds.add(tPoint.id);
+                    processedTargetIndices.add(tIndex);
                     controlPointAnimations.push({
                         segmentId,
                         start: sPoint,
@@ -117,8 +131,8 @@ export class ProfileManager {
             });
 
             // 2. Handle Appearing Points (Target points not in Start)
-            tList.forEach(tPoint => {
-                if (!processedTargetIds.has(tPoint.id)) {
+            tList.forEach((tPoint, tIndex) => {
+                if (!processedTargetIds.has(tPoint.id) && !processedTargetIndices.has(tIndex)) {
                     // Appearing: Animate Neutral -> Target
                     const neutral = {
                         ...tPoint,
@@ -139,9 +153,11 @@ export class ProfileManager {
         const animate = (currentTime) => {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
+            const handleProgress = Math.min(elapsed / handleDuration, 1);
 
             // Ease out cubic
             const ease = 1 - Math.pow(1 - progress, 3);
+            const handleEase = 1 - Math.pow(1 - handleProgress, 3);
 
             const nextState = { ...startState };
 
@@ -172,14 +188,14 @@ export class ProfileManager {
                     interpolatedPoint.offsetParallel = start.offsetParallel + (target.offsetParallel - start.offsetParallel) * ease;
                     interpolatedPoint.offsetPerpendicular = start.offsetPerpendicular + (target.offsetPerpendicular - start.offsetPerpendicular) * ease;
 
-                    // Interpolate handles
+                    // Interpolate handles (using handleEase)
                     interpolatedPoint.handleIn = {
-                        parallel: start.handleIn.parallel + (target.handleIn.parallel - start.handleIn.parallel) * ease,
-                        perpendicular: start.handleIn.perpendicular + (target.handleIn.perpendicular - start.handleIn.perpendicular) * ease
+                        parallel: start.handleIn.parallel + (target.handleIn.parallel - start.handleIn.parallel) * handleEase,
+                        perpendicular: start.handleIn.perpendicular + (target.handleIn.perpendicular - start.handleIn.perpendicular) * handleEase
                     };
                     interpolatedPoint.handleOut = {
-                        parallel: start.handleOut.parallel + (target.handleOut.parallel - start.handleOut.parallel) * ease,
-                        perpendicular: start.handleOut.perpendicular + (target.handleOut.perpendicular - start.handleOut.perpendicular) * ease
+                        parallel: start.handleOut.parallel + (target.handleOut.parallel - start.handleOut.parallel) * handleEase,
+                        perpendicular: start.handleOut.perpendicular + (target.handleOut.perpendicular - start.handleOut.perpendicular) * handleEase
                     };
 
                     // Handle Scale Animation (Appear/Disappear)
