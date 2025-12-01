@@ -127,6 +127,7 @@ export class ImageOverlayManager {
         this.flipImageBtn.addEventListener('click', () => {
             if (!this.hasImageOverlay) return;
             this.imageFlipped = !this.imageFlipped;
+            this.stateManager.setState({ imageFlipped: this.imageFlipped });
             this.#applyImageTransform();
         });
 
