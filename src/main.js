@@ -109,9 +109,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         layerController
     });
 
-    const render = () => {
-        chassisRenderer.draw();
-        humanFigureRenderer.update();
+    const render = (state, context) => {
+        chassisRenderer.draw(context);
+        humanFigureRenderer.update(context);
     };
 
     // Initialize Smart Adjusters

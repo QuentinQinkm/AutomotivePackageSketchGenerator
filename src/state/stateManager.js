@@ -59,8 +59,8 @@ export class StateManager {
         return () => this.listeners.delete(listener);
     }
 
-    notify() {
-        this.listeners.forEach((listener) => listener(this.state));
+    notify(context) {
+        this.listeners.forEach((listener) => listener(this.state, context));
     }
 
     subscribeInteraction(listener) {
@@ -130,7 +130,7 @@ export class StateManager {
         this.displays.handDistanceX.textContent = `${this.state.handDistanceX}mm`;
     }
 
-    setState(partial, { silent = false } = {}) {
+    setState(partial, { silent = false, ...context } = {}) {
         if (!partial || typeof partial !== 'object') return;
 
         Object.entries(partial).forEach(([key, value]) => {
@@ -140,11 +140,11 @@ export class StateManager {
         });
 
         if (!silent) {
-            this.notify();
+            this.notify(context);
         }
     }
 
-    replaceState(newState, { silent = false } = {}) {
+    replaceState(newState, { silent = false, ...context } = {}) {
         if (!newState || typeof newState !== 'object') return;
 
         // We want to keep the structure but replace values.
@@ -167,7 +167,7 @@ export class StateManager {
         });
 
         if (!silent) {
-            this.notify();
+            this.notify(context);
         }
     }
 

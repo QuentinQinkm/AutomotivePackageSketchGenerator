@@ -156,7 +156,7 @@ export class ChassisRenderer {
         this.pointTooltip.remove();
     }
 
-    draw() {
+    draw(context) {
         const state = this.stateManager.getState();
         const showChassisControls = this.layerController.isActive('chassis');
         this.drawingGroup.innerHTML = '';
@@ -471,6 +471,7 @@ export class ChassisRenderer {
         groundLine.setAttribute('stroke-width', '2');
         linesGroup.appendChild(groundLine);
 
+        // Update dimension labels even during animation so the UI doesn't briefly show placeholders
         this.updateDimensions();
     }
 
@@ -1615,4 +1616,3 @@ export class ChassisRenderer {
         this.updateDimensions();
     }
 }
-

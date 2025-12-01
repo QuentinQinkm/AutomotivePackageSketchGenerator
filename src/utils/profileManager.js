@@ -252,7 +252,7 @@ export class ProfileManager {
                 }
             });
 
-            this.stateManager.replaceState(nextState);
+            this.stateManager.replaceState(nextState, { isAnimating: true });
 
             if (progress < 1) {
                 this.animationFrameId = requestAnimationFrame(animate);
@@ -378,6 +378,26 @@ export class ProfileManager {
         }
     }
 
+    renameProfile(index) {
+        if (index < 0 || index >= this.profiles.length) return;
+        const profile = this.profiles[index];
+        const newName = prompt('Enter new profile name:', profile.name);
+        if (newName && newName.trim() !== '') {
+            this.profiles[index].name = newName.trim();
+            if (typeof this.saveProfiles === 'function') {
+                this.saveProfiles();
+            }
+            // Force a slight delay to ensure the prompt closing doesn't interfere with rendering
+            requestAnimationFrame(() => {
+                this.render();
+                // Trigger a redraw so dimension values refresh after DOM rebuild
+                if (this.stateManager && typeof this.stateManager.notify === 'function') {
+                    this.stateManager.notify({ reason: 'profile-rename' });
+                }
+            });
+        }
+    }
+
     render() {
         if (!this.container) return;
         this.container.innerHTML = '';
@@ -402,6 +422,7 @@ export class ProfileManager {
                         </div>
                     </div>
                     <div class="profile-options">
+                        <div class="profile-option" data-action="rename">Rename</div>
                         <div class="profile-option" data-action="duplicate">Duplicate</div>
                         <div class="profile-option danger" data-action="delete">Delete</div>
                     </div>
@@ -410,11 +431,18 @@ export class ProfileManager {
                 // Attach event listeners for options
                 const deleteBtn = bar.querySelector('[data-action="delete"]');
                 const duplicateBtn = bar.querySelector('[data-action="duplicate"]');
+                const renameBtn = bar.querySelector('[data-action="rename"]');
 
                 if (duplicateBtn) {
                     duplicateBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         this.duplicateProfile(index);
+                    });
+                }
+                if (renameBtn) {
+                    renameBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.renameProfile(index);
                     });
                 }
                 if (deleteBtn) deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); this.deleteProfile(index); });
@@ -448,59 +476,27 @@ export class ProfileManager {
     }
 
     centerActiveProfile() {
-        // Calculate offset to center the active element
-        // The container is centered at 50% left.
-        // We need to translate the container so the active element's center aligns with the container's anchor point (which is screen center).
-
+        // Defer centering by one frame so layout (including newly expanded active tab) has settled
         if (!this.container) return;
+        if (this.centerRaf) cancelAnimationFrame(this.centerRaf);
 
-        const bars = Array.from(this.container.children);
-        if (bars.length === 0) return;
+        this.centerRaf = requestAnimationFrame(() => {
+            this.centerRaf = null;
 
-        const activeBar = bars[this.activeProfileIndex];
-        if (!activeBar) return;
+            const bars = Array.from(this.container.children);
+            if (bars.length === 0) return;
 
-        // Get widths and positions relative to container
-        // Since we can't easily get layout before paint, we might need to wait or assume widths.
-        // But we can use offsetLeft.
+            const activeBar = bars[this.activeProfileIndex];
+            if (!activeBar) return;
 
-        const containerWidth = this.container.offsetWidth;
-        if (containerWidth === 0) return;
-        const activeCenter = activeBar.offsetLeft + activeBar.offsetWidth / 2;
-        const containerCenter = containerWidth / 2;
-        const delta = containerCenter - activeCenter;
+            const containerWidth = this.container.offsetWidth;
+            if (containerWidth === 0) return;
+            const activeCenter = activeBar.offsetLeft + activeBar.offsetWidth / 2;
+            const containerCenter = containerWidth / 2;
+            const delta = containerCenter - activeCenter;
 
-        // We want activeCenter to be at 0 relative to the container's transform origin?
-        // Container is left: 50%, transform: translateX(-50%).
-        // This puts the container's visual center at screen center IF the container's width is centered.
-        // But flex container width depends on content.
-
-        // Let's adjust translateX.
-        // Default is -50%.
-        // We want the active item to be at the screen center.
-        // Screen Center = Container Left + Active Item Left + Active Item Width/2
-        // We want Screen Center to coincide with viewport center.
-
-        // Actually, simpler:
-        // We want to shift the container such that the active item's center is at the container's anchor point.
-        // Container anchor is at 50% of viewport.
-        // So we want (Container Left + Active Center) = Viewport Center.
-        // Container Left is determined by `left: 50%` and `transform: translateX(...)`.
-
-        // Let T be the translation X.
-        // Container Visual Left = ViewportWidth/2 + T. (Wait, transform is relative to element width usually).
-        // If transform is percentage, it's % of element width.
-        // If pixels, it's pixels.
-
-        // Let's use pixel translation for precise control.
-        // We want: ActiveBar.offsetLeft + ActiveBar.offsetWidth/2 + T = 0 (relative to anchor).
-        // So T = -(ActiveBar.offsetLeft + ActiveBar.offsetWidth/2).
-
-        // But we also need to account for the initial `left: 50%`.
-        // The container's origin (0,0) is at 50% of the screen width.
-        // So if we translate by -ActiveCenter, the ActiveCenter will be at the origin (Screen Center).
-
-        this.container.style.transform = `translateX(-50%) translateX(${Math.round(delta)}px)`;
+            this.container.style.transform = `translateX(-50%) translateX(${Math.round(delta)}px)`;
+        });
     }
 
     getProfileCount() {
