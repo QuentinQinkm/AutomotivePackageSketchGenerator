@@ -169,7 +169,7 @@ export class ImageOverlayManager {
             this.alignInput.addEventListener('blur', () => {
                 let value = parseInt(this.alignInput.value, 10);
                 if (Number.isFinite(value)) {
-                    value = Math.round(value / 50) * 50;
+                    value = Math.round(value / 10) * 10;
                     // Clamp
                     value = Math.max(this.alignWheelBaseBounds.min, Math.min(this.alignWheelBaseBounds.max, value));
                     this.alignInput.value = value;
@@ -422,19 +422,6 @@ export class ImageOverlayManager {
     #handleAlignInputChange() {
         if (!this.alignConfirmButton || !this.alignInput) return;
         let value = parseInt(this.alignInput.value, 10);
-
-        // Round to nearest 50
-        if (Number.isFinite(value)) {
-            // Only round if the user has stopped typing? 
-            // Or just validate? 
-            // The user asked to "make the input round to the nearest 50 interval".
-            // If I round while typing, it might be annoying.
-            // But usually "input round to" means the final value or the step.
-            // I will enforce step=50 in HTML and validate here.
-            // Actually, I'll round the value used for validation/confirmation, 
-            // but maybe not the input value immediately while typing unless on blur.
-            // Let's add a blur listener for rounding the input display.
-        }
 
         const isValid = this.isAlignModeActive &&
             this.alignDots.length === 2 &&
@@ -1007,4 +994,3 @@ export class ImageOverlayManager {
         this.isApplyingScale = false;
     }
 }
-
