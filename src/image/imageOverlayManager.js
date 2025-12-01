@@ -49,11 +49,18 @@ export class ImageOverlayManager {
         this.hasImageOverlay = false;
         this.imageFlipped = false;
         this.imageRotation = 0;
+        this.imageScale = 100;
+        this.scaleBaseFrame = null;
+        this.isApplyingScale = false;
+        this.suppressScaleApply = false;
         this.dragState = null;
         this.resizeState = null;
         this.alignDots = [];
         this.isAlignModeActive = false;
         this.draggingAlignDot = null;
+        this.isResizing = false;
+        this.isDraggingFrame = false;
+        this.activeResizeCursor = null;
 
         const wheelBaseInput = this.stateManager.inputs?.wheelBase;
         const minWheelBase = wheelBaseInput ? parseInt(wheelBaseInput.min, 10) : 1000;
@@ -76,18 +83,9 @@ export class ImageOverlayManager {
             this.layerController.onChange(() => this.#updateImageEditingState());
         }
 
-        // Subscribe to state changes for opacity and rotation
-        this.stateManager.subscribe(state => {
-            if (this.hasImageOverlay) {
-                // Opacity is 0-100 in state, 0-1 in CSS
-                this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 100) / 100;
-
-                if (state.imageRotation !== undefined) {
-                    this.imageRotation = state.imageRotation;
-                    this.#applyImageTransform();
-                }
-            }
-        });
+        this.boundStateListener = (state) => this.#handleStateSync(state);
+        this.stateManager.subscribe(this.boundStateListener);
+        this.#handleStateSync(this.stateManager.getState());
     }
 
     #bindEvents() {
@@ -108,9 +106,18 @@ export class ImageOverlayManager {
             // Reset state
             this.imageRotation = 0;
             this.imageFlipped = false;
+             this.imageScale = 100;
+             this.scaleBaseFrame = null;
+            this.lastImageData = null;
+            const emptyFrame = this.#getEmptyFrame();
+            this.#applyFrameState(emptyFrame);
             this.stateManager.setState({
+                imageData: null,
+                imageFrame: emptyFrame,
                 imageRotation: 0,
-                imageOpacity: 100
+                imageOpacity: 50,
+                imageFlipped: false,
+                imageScale: 100
             });
 
             this.#applyImageTransform();
@@ -123,8 +130,6 @@ export class ImageOverlayManager {
             this.#applyImageTransform();
         });
 
-        this.imageFrame.addEventListener('pointerdown', (event) => this.#startDrag(event));
-        this.resizeHandle.addEventListener('pointerdown', (event) => this.#startResize(event));
 
         this.canvasArea.addEventListener('dragover', (event) => {
             event.preventDefault();
@@ -178,6 +183,9 @@ export class ImageOverlayManager {
         }
 
         this.imageFrame.addEventListener('click', (event) => this.#handleAlignClick(event));
+        this.imageFrame.addEventListener('pointerdown', (event) => this.#handleFramePointerDown(event));
+        this.imageFrame.addEventListener('pointermove', (event) => this.#updateFrameCursor(event));
+        this.imageFrame.addEventListener('pointerleave', () => this.#resetFrameCursor());
     }
 
     #updateImageEditingState() {
@@ -196,77 +204,7 @@ export class ImageOverlayManager {
 
         this.imageFrame.classList.toggle('editing', isEditing);
         this.canvasArea.classList.toggle('editing-image', isEditing);
-
-        // Subscribe to state changes
-        this.stateManager.subscribe(state => {
-            // Handle Image Data (Source)
-            if (state.imageData !== this.lastImageData) {
-                this.lastImageData = state.imageData;
-                if (state.imageData) {
-                    this.hasImageOverlay = true;
-                    this.imageFrame.classList.add('has-image');
-                    this.overlayImage.src = state.imageData;
-                    this.#setAlignButtonAvailability(true);
-                    this.#updateImageEditingState();
-
-                    // Restore frame if available
-                    if (state.imageFrame && state.imageFrame.width > 0) {
-                        this.imageFrame.style.left = `${state.imageFrame.x}px`;
-                        this.imageFrame.style.top = `${state.imageFrame.y}px`;
-                        this.imageFrame.style.width = `${state.imageFrame.width}px`;
-                        this.imageFrame.style.height = `${state.imageFrame.height}px`;
-                    }
-                } else {
-                    this.hasImageOverlay = false;
-                    this.imageFrame.classList.remove('has-image');
-                    this.overlayImage.src = '';
-                    this.#setAlignButtonAvailability(false);
-                    this.#updateImageEditingState();
-                }
-            }
-
-            if (this.hasImageOverlay) {
-                // Opacity
-                this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 100) / 100;
-
-                // Rotation & Flip
-                let transformChanged = false;
-                if (state.imageRotation !== undefined && state.imageRotation !== this.imageRotation) {
-                    this.imageRotation = state.imageRotation;
-                    transformChanged = true;
-                }
-                if (state.imageFlipped !== undefined && state.imageFlipped !== this.imageFlipped) {
-                    this.imageFlipped = state.imageFlipped;
-                    transformChanged = true;
-                }
-
-                if (transformChanged) {
-                    this.#applyImageTransform();
-                }
-
-                // Frame Position (if updated externally, e.g. undo/redo or profile switch)
-                // We check if the DOM matches the state to avoid jitter during drag
-                if (state.imageFrame && state.imageFrame.width > 0 && !this.dragState && !this.resizeState) {
-                    const currentFrame = {
-                        x: parseFloat(this.imageFrame.style.left) || 0,
-                        y: parseFloat(this.imageFrame.style.top) || 0,
-                        width: parseFloat(this.imageFrame.style.width) || 0,
-                        height: parseFloat(this.imageFrame.style.height) || 0
-                    };
-
-                    if (Math.abs(currentFrame.x - state.imageFrame.x) > 1 ||
-                        Math.abs(currentFrame.y - state.imageFrame.y) > 1 ||
-                        Math.abs(currentFrame.width - state.imageFrame.width) > 1 ||
-                        Math.abs(currentFrame.height - state.imageFrame.height) > 1) {
-
-                        this.imageFrame.style.left = `${state.imageFrame.x}px`;
-                        this.imageFrame.style.top = `${state.imageFrame.y}px`;
-                        this.imageFrame.style.width = `${state.imageFrame.width}px`;
-                        this.imageFrame.style.height = `${state.imageFrame.height}px`;
-                    }
-                }
-            }
-        });
+        this.#resetFrameCursor();
     }
 
     enterAlignMode() {
@@ -321,9 +259,10 @@ export class ImageOverlayManager {
                 // Update state
                 this.stateManager.setState({
                     imageData: reader.result,
-                    imageOpacity: 100,
+                    imageOpacity: 50,
                     imageRotation: 0,
                     imageFlipped: false,
+                    imageScale: 100,
                     imageFrame: frame
                 });
             };
@@ -518,14 +457,14 @@ export class ImageOverlayManager {
         this.#applyAlignmentTransform(wheelBaseValue);
 
         // Save the new frame state after alignment
-        this.stateManager.setState({
-            imageFrame: {
-                x: parseFloat(this.imageFrame.style.left) || 0,
-                y: parseFloat(this.imageFrame.style.top) || 0,
-                width: parseFloat(this.imageFrame.style.width) || 0,
-                height: parseFloat(this.imageFrame.style.height) || 0
-            }
-        });
+        const frame = {
+            x: parseFloat(this.imageFrame.style.left) || 0,
+            y: parseFloat(this.imageFrame.style.top) || 0,
+            width: parseFloat(this.imageFrame.style.width) || 0,
+            height: parseFloat(this.imageFrame.style.height) || 0
+        };
+        this.stateManager.setState({ imageFrame: frame });
+        this.#setScaleBaselineFromFrame(frame, { resetScale: true });
 
         this.exitAlignMode(true);
     }
@@ -669,8 +608,92 @@ export class ImageOverlayManager {
         this.draggingAlignDot = null;
     }
 
+    #handleFramePointerDown(event) {
+        if (!this.hasImageOverlay || this.isAlignModeActive || !this.imageFrame.classList.contains('editing')) return;
+        if (event.button !== undefined && event.button !== 0) return;
+        if (event.target.closest('.align-dot')) return;
+
+        const edges = this.#getEdgeHitTest(event);
+        if (edges.resize) {
+            this.activeResizeCursor = edges.cursor;
+            this.#startResize(event, edges);
+        } else {
+            this.#startDrag(event);
+        }
+    }
+
+    #getEdgeHitTest(event) {
+        const rect = this.imageFrame.getBoundingClientRect();
+        const threshold = 12;
+        const nearLeft = Math.abs(event.clientX - rect.left) <= threshold;
+        const nearRight = Math.abs(rect.right - event.clientX) <= threshold;
+        const nearTop = Math.abs(event.clientY - rect.top) <= threshold;
+        const nearBottom = Math.abs(rect.bottom - event.clientY) <= threshold;
+
+        const horizontal = nearLeft || nearRight;
+        const vertical = nearTop || nearBottom;
+        let cursor = 'grab';
+
+        if (horizontal && vertical) {
+            if ((nearLeft && nearTop) || (nearRight && nearBottom)) {
+                cursor = 'nwse-resize';
+            } else {
+                cursor = 'nesw-resize';
+            }
+        } else if (horizontal) {
+            cursor = 'ew-resize';
+        } else if (vertical) {
+            cursor = 'ns-resize';
+        }
+
+        return {
+            nearLeft,
+            nearRight,
+            nearTop,
+            nearBottom,
+            horizontal,
+            vertical,
+            resize: horizontal || vertical,
+            cursor
+        };
+    }
+
+    #updateFrameCursor(event) {
+        if (!this.hasImageOverlay || this.isAlignModeActive || !this.imageFrame.classList.contains('editing')) return;
+        if (this.isResizing) {
+            this.imageFrame.style.cursor = this.activeResizeCursor || 'nwse-resize';
+            return;
+        }
+        if (this.isDraggingFrame) {
+            this.imageFrame.style.cursor = 'grabbing';
+            return;
+        }
+
+        const edges = this.#getEdgeHitTest(event);
+        if (edges.resize) {
+            this.imageFrame.style.cursor = edges.cursor;
+        } else {
+            this.imageFrame.style.cursor = 'grab';
+        }
+    }
+
+    #resetFrameCursor() {
+        if (!this.hasImageOverlay || this.isAlignModeActive || !this.imageFrame.classList.contains('editing')) {
+            this.imageFrame.style.cursor = '';
+            return;
+        }
+
+        if (this.isResizing) {
+            this.imageFrame.style.cursor = this.activeResizeCursor || 'nwse-resize';
+        } else if (this.isDraggingFrame) {
+            this.imageFrame.style.cursor = 'grabbing';
+        } else {
+            this.imageFrame.style.cursor = 'grab';
+        }
+    }
+
     #startDrag(event) {
-        if (!this.hasImageOverlay || this.isAlignModeActive || event.target === this.resizeHandle) return;
+        if (!this.hasImageOverlay || this.isAlignModeActive) return;
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
         this.dragState = {
@@ -679,6 +702,8 @@ export class ImageOverlayManager {
             left: parseFloat(this.imageFrame.style.left) || 0,
             top: parseFloat(this.imageFrame.style.top) || 0
         };
+        this.isDraggingFrame = true;
+        this.imageFrame.style.cursor = 'grabbing';
         this.boundDragMove = (e) => this.#handleDragMove(e);
         this.boundStopDrag = () => this.#stopDrag();
         window.addEventListener('pointermove', this.boundDragMove);
@@ -699,6 +724,8 @@ export class ImageOverlayManager {
         this.dragState = null;
         window.removeEventListener('pointermove', this.boundDragMove);
         window.removeEventListener('pointerup', this.boundStopDrag);
+        this.isDraggingFrame = false;
+        this.#resetFrameCursor();
 
         // Save new position to state
         this.stateManager.setState({
@@ -711,7 +738,7 @@ export class ImageOverlayManager {
         });
     }
 
-    #startResize(event) {
+    #startResize(event, edges = null) {
         if (!this.hasImageOverlay || this.isAlignModeActive) return;
         event.stopPropagation();
         event.preventDefault();
@@ -720,8 +747,14 @@ export class ImageOverlayManager {
             startX: point.x,
             startY: point.y,
             width: this.imageFrame.offsetWidth,
-            height: this.imageFrame.offsetHeight
+            height: this.imageFrame.offsetHeight,
+            left: parseFloat(this.imageFrame.style.left) || 0,
+            top: parseFloat(this.imageFrame.style.top) || 0,
+            edges: edges || this.#getEdgeHitTest(event)
         };
+        this.isResizing = true;
+        this.activeResizeCursor = this.resizeState.edges.cursor || 'nwse-resize';
+        this.imageFrame.style.cursor = this.activeResizeCursor;
         this.boundResizeMove = (e) => this.#handleResizeMove(e);
         this.boundStopResize = () => this.#stopResize();
         window.addEventListener('pointermove', this.boundResizeMove);
@@ -733,18 +766,31 @@ export class ImageOverlayManager {
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
 
-        // Calculate new width based on drag
-        let nextWidth = Math.max(MIN_FRAME_WIDTH, this.resizeState.width + (point.x - this.resizeState.startX));
+        const edges = this.resizeState.edges || {};
+        const deltaX = point.x - this.resizeState.startX;
+        const deltaY = point.y - this.resizeState.startY;
 
-        // Enforce aspect ratio
-        let nextHeight = nextWidth / this.aspectRatio;
+        let nextLeft = this.resizeState.left;
+        let nextTop = this.resizeState.top;
+        let nextWidth = this.resizeState.width;
+        let nextHeight = this.resizeState.height;
 
-        // Optional: Check if height is too small
-        if (nextHeight < MIN_FRAME_HEIGHT) {
-            nextHeight = MIN_FRAME_HEIGHT;
-            nextWidth = nextHeight * this.aspectRatio;
+        if (edges.nearRight) {
+            nextWidth = Math.max(MIN_FRAME_WIDTH, this.resizeState.width + deltaX);
+        } else if (edges.nearLeft) {
+            nextWidth = Math.max(MIN_FRAME_WIDTH, this.resizeState.width - deltaX);
+            nextLeft = this.resizeState.left + (this.resizeState.width - nextWidth);
         }
 
+        if (edges.nearBottom) {
+            nextHeight = Math.max(MIN_FRAME_HEIGHT, this.resizeState.height + deltaY);
+        } else if (edges.nearTop) {
+            nextHeight = Math.max(MIN_FRAME_HEIGHT, this.resizeState.height - deltaY);
+            nextTop = this.resizeState.top + (this.resizeState.height - nextHeight);
+        }
+
+        this.imageFrame.style.left = `${nextLeft}px`;
+        this.imageFrame.style.top = `${nextTop}px`;
         this.imageFrame.style.width = `${nextWidth}px`;
         this.imageFrame.style.height = `${nextHeight}px`;
     }
@@ -753,16 +799,19 @@ export class ImageOverlayManager {
         this.resizeState = null;
         window.removeEventListener('pointermove', this.boundResizeMove);
         window.removeEventListener('pointerup', this.boundStopResize);
+        this.isResizing = false;
+        this.activeResizeCursor = null;
 
         // Save new size to state
-        this.stateManager.setState({
-            imageFrame: {
-                x: parseFloat(this.imageFrame.style.left) || 0,
-                y: parseFloat(this.imageFrame.style.top) || 0,
-                width: parseFloat(this.imageFrame.style.width) || 0,
-                height: parseFloat(this.imageFrame.style.height) || 0
-            }
-        });
+        const frame = {
+            x: parseFloat(this.imageFrame.style.left) || 0,
+            y: parseFloat(this.imageFrame.style.top) || 0,
+            width: parseFloat(this.imageFrame.style.width) || 0,
+            height: parseFloat(this.imageFrame.style.height) || 0
+        };
+        this.stateManager.setState({ imageFrame: frame });
+        this.#setScaleBaselineFromFrame(frame, { resetScale: true });
+        this.#resetFrameCursor();
     }
 
     #getNormalizedPoint(event) {
@@ -791,6 +840,171 @@ export class ImageOverlayManager {
 
     #isImageLayerActive() {
         return this.layerController ? this.layerController.isActive('image') : true;
+    }
+
+    #handleStateSync(state) {
+        const imageChanged = state.imageData !== this.lastImageData;
+
+        if (imageChanged) {
+            this.lastImageData = state.imageData;
+            if (state.imageData) {
+                this.hasImageOverlay = true;
+                this.imageFrame.classList.add('has-image');
+                this.overlayImage.src = state.imageData;
+                this.#setAlignButtonAvailability(true);
+                if (state.imageFrame && state.imageFrame.width > 0) {
+                    this.#applyFrameState(state.imageFrame);
+                }
+            } else {
+                this.hasImageOverlay = false;
+                this.imageFrame.classList.remove('has-image');
+                this.overlayImage.src = '';
+                this.#setAlignButtonAvailability(false);
+                this.exitAlignMode(true);
+                this.#applyFrameState(this.#getEmptyFrame());
+                this.scaleBaseFrame = null;
+                this.imageScale = 100;
+            }
+            this.#updateImageEditingState();
+        }
+
+        if (!this.hasImageOverlay) {
+            return;
+        }
+
+        // Opacity (state is 0-100, css expects 0-1)
+        this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 50) / 100;
+
+        // Rotation & flip
+        let transformChanged = false;
+        if (state.imageRotation !== undefined && state.imageRotation !== this.imageRotation) {
+            this.imageRotation = state.imageRotation;
+            transformChanged = true;
+        }
+        if (state.imageFlipped !== undefined && state.imageFlipped !== this.imageFlipped) {
+            this.imageFlipped = state.imageFlipped;
+            transformChanged = true;
+        }
+        if (transformChanged) {
+            this.#applyImageTransform();
+        }
+
+        if (state.imageScale !== undefined && state.imageScale !== this.imageScale) {
+            this.imageScale = state.imageScale;
+            if (!this.suppressScaleApply) {
+                if (!this.scaleBaseFrame && state.imageFrame && state.imageFrame.width > 0) {
+                    this.scaleBaseFrame = this.#deriveBaselineFromScaledFrame(state.imageFrame, this.imageScale);
+                } else {
+                    this.#applyScaleFromState();
+                }
+            }
+        }
+
+        // Frame sync (skip while dragging/resizing)
+        if (state.imageFrame && state.imageFrame.width > 0 && !this.dragState && !this.resizeState) {
+            if (this.#frameDiffersFromState(state.imageFrame)) {
+                this.#applyFrameState(state.imageFrame);
+            }
+        }
+
+        if (!this.isApplyingScale && state.imageFrame && state.imageFrame.width > 0) {
+            if (this.imageScale === 100) {
+                this.scaleBaseFrame = { ...state.imageFrame };
+            } else if (!this.scaleBaseFrame) {
+                this.scaleBaseFrame = this.#deriveBaselineFromScaledFrame(state.imageFrame, this.imageScale);
+            }
+        }
+    }
+
+    #frameDiffersFromState(targetFrame) {
+        const currentFrame = {
+            x: parseFloat(this.imageFrame.style.left) || 0,
+            y: parseFloat(this.imageFrame.style.top) || 0,
+            width: parseFloat(this.imageFrame.style.width) || 0,
+            height: parseFloat(this.imageFrame.style.height) || 0
+        };
+
+        return Math.abs(currentFrame.x - targetFrame.x) > 1 ||
+            Math.abs(currentFrame.y - targetFrame.y) > 1 ||
+            Math.abs(currentFrame.width - targetFrame.width) > 1 ||
+            Math.abs(currentFrame.height - targetFrame.height) > 1;
+    }
+
+    #applyFrameState(frame) {
+        const nextFrame = frame || this.#getEmptyFrame();
+        this.imageFrame.style.left = `${nextFrame.x || 0}px`;
+        this.imageFrame.style.top = `${nextFrame.y || 0}px`;
+        this.imageFrame.style.width = `${nextFrame.width || 0}px`;
+        this.imageFrame.style.height = `${nextFrame.height || 0}px`;
+    }
+
+    #getEmptyFrame() {
+        return { x: 0, y: 0, width: 0, height: 0 };
+    }
+
+    #getCurrentFrame() {
+        return {
+            x: parseFloat(this.imageFrame.style.left) || 0,
+            y: parseFloat(this.imageFrame.style.top) || 0,
+            width: parseFloat(this.imageFrame.style.width) || 0,
+            height: parseFloat(this.imageFrame.style.height) || 0
+        };
+    }
+
+    #setScaleBaselineFromFrame(frame, { resetScale = false } = {}) {
+        if (!frame || frame.width <= 0 || frame.height <= 0) return;
+        this.scaleBaseFrame = { ...frame };
+        if (resetScale && this.imageScale !== 100) {
+            this.suppressScaleApply = true;
+            this.imageScale = 100;
+            this.stateManager.setState({ imageScale: 100 });
+            this.suppressScaleApply = false;
+        }
+    }
+
+    #deriveBaselineFromScaledFrame(frame, scaleValue) {
+        const scale = Math.max(0.25, (scaleValue || 100) / 100);
+        if (scale === 1) {
+            return { ...frame };
+        }
+        const centerX = frame.x + (frame.width / 2);
+        const centerY = frame.y + (frame.height / 2);
+        const width = frame.width / scale;
+        const height = frame.height / scale;
+        return {
+            x: centerX - (width / 2),
+            y: centerY - (height / 2),
+            width,
+            height
+        };
+    }
+
+    #applyScaleFromState() {
+        if (!this.scaleBaseFrame || this.scaleBaseFrame.width <= 0 || this.scaleBaseFrame.height <= 0) {
+            const current = this.#getCurrentFrame();
+            if (current.width <= 0 || current.height <= 0) {
+                return;
+            }
+            this.scaleBaseFrame = { ...current };
+        }
+
+        const base = this.scaleBaseFrame;
+        const scale = Math.max(0.25, (this.imageScale || 100) / 100);
+        const centerX = base.x + (base.width / 2);
+        const centerY = base.y + (base.height / 2);
+        const width = Math.max(MIN_FRAME_WIDTH, base.width * scale);
+        const height = Math.max(MIN_FRAME_HEIGHT, base.height * scale);
+        const frame = {
+            x: centerX - (width / 2),
+            y: centerY - (height / 2),
+            width,
+            height
+        };
+
+        this.isApplyingScale = true;
+        this.#applyFrameState(frame);
+        this.stateManager.setState({ imageFrame: frame });
+        this.isApplyingScale = false;
     }
 }
 

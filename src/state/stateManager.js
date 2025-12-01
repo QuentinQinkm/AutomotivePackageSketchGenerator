@@ -47,6 +47,7 @@ export class StateManager {
             nextControlPointId: 1,
             imageOpacity: 50,
             imageRotation: 0,
+            imageScale: 100,
             imageData: null,
             imageFlipped: false,
             imageFrame: { x: 0, y: 0, width: 0, height: 0 }

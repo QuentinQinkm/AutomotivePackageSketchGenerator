@@ -51,6 +51,10 @@
     pointer-events: none;
 }
 
+.smart-adjuster[data-hide-value="true"] .adjuster-value {
+    display: none;
+}
+
 /* Knob Container - Hidden by default */
 .adjuster-knob-container {
     height: 0;

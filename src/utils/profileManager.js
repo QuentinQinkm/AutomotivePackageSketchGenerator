@@ -4,6 +4,9 @@ export class ProfileManager {
         this.profiles = [];
         this.activeProfileIndex = 0;
         this.container = document.getElementById('profileBarContainer');
+        this.defaultState = this.roundValues(this.stateManager.getState());
+        this.maxProfiles = 5;
+        this.profileCountListeners = new Set();
 
         // Initialize with a default profile
         this.addProfile('Profile 1', this.stateManager.getState(), true);
@@ -20,15 +23,30 @@ export class ProfileManager {
     }
 
     addProfile(name, data, silent = false) {
+        if (!silent && this.profiles.length >= this.maxProfiles) {
+            return false;
+        }
+
+        const shouldStripImageState = !data;
+        const sourceState = data || this.stateManager.getState();
+        const snapshot = this.roundValues(sourceState);
+
+        if (shouldStripImageState) {
+            this.#stripImageState(snapshot);
+        }
+
         const profile = {
             name: name || `Profile ${this.profiles.length + 1}`,
-            data: data ? this.roundValues(data) : this.roundValues(this.stateManager.getState())
+            data: snapshot
         };
         this.profiles.push(profile);
         if (!silent) {
             this.setActiveProfile(this.profiles.length - 1);
+        } else {
+            this.render();
         }
-        this.render();
+        this.#emitProfileCountChange();
+        return true;
     }
 
     setActiveProfile(index) {
@@ -59,12 +77,7 @@ export class ProfileManager {
         if (!file) return;
 
         try {
-            const text = await file.text();
-            const data = JSON.parse(text);
-
-            if (!data || typeof data !== 'object') {
-                throw new Error('Invalid profile data');
-            }
+            const data = await this.#readProfileFile(file);
 
             // Add as new profile
             const name = file.name.replace('.json', '') || `Profile ${this.profiles.length + 1}`;
@@ -92,6 +105,7 @@ export class ProfileManager {
                 this.activeProfileIndex = this.profiles.length - 1;
             }
             this.setActiveProfile(this.activeProfileIndex);
+            this.#emitProfileCountChange();
         }
     }
 
@@ -110,6 +124,53 @@ export class ProfileManager {
             return newObj;
         }
         return obj;
+    }
+
+    #stripImageState(state) {
+        state.imageData = null;
+        state.imageFrame = { x: 0, y: 0, width: 0, height: 0 };
+        state.imageOpacity = 50;
+        state.imageRotation = 0;
+        state.imageFlipped = false;
+        state.imageScale = 100;
+        return state;
+    }
+
+    resetCanvas() {
+        const resetState = this.roundValues(this.defaultState);
+        this.stateManager.replaceState(resetState);
+    }
+
+    duplicateProfile(index) {
+        if (this.profiles.length >= this.maxProfiles) return;
+        const source = this.profiles[index];
+        if (!source) return;
+        const copy = {
+            name: `${source.name} Copy`,
+            data: this.roundValues(source.data)
+        };
+        this.profiles.splice(index + 1, 0, copy);
+        this.setActiveProfile(index + 1);
+        this.#emitProfileCountChange();
+    }
+
+    overwriteActiveProfile(data) {
+        if (!this.profiles[this.activeProfileIndex] || !data) return;
+        const snapshot = this.roundValues(data);
+        this.profiles[this.activeProfileIndex].data = snapshot;
+        this.stateManager.replaceState(snapshot);
+        this.render();
+    }
+
+    async overwriteProfileFromFile(file) {
+        if (!file) return;
+        try {
+            const data = await this.#readProfileFile(file);
+            this.overwriteActiveProfile(data);
+        } catch (error) {
+            console.error('Error overwriting profile:', error);
+            alert('Failed to overwrite profile. Please ensure the file is a valid JSON profile.');
+        }
     }
 
     render() {
@@ -136,19 +197,21 @@ export class ProfileManager {
                         </div>
                     </div>
                     <div class="profile-options">
-                        <div class="profile-option" data-action="overwrite">Overwrite</div>
-                        <div class="profile-option" data-action="download">Download</div>
+                        <div class="profile-option" data-action="duplicate">Duplicate</div>
                         <div class="profile-option danger" data-action="delete">Delete</div>
                     </div>
                 `;
 
                 // Attach event listeners for options
-                const overwriteBtn = bar.querySelector('[data-action="overwrite"]');
-                const downloadBtn = bar.querySelector('[data-action="download"]');
                 const deleteBtn = bar.querySelector('[data-action="delete"]');
+                const duplicateBtn = bar.querySelector('[data-action="duplicate"]');
 
-                if (overwriteBtn) overwriteBtn.addEventListener('click', (e) => { e.stopPropagation(); this.saveProfile(); }); // Overwrite acts as save for now
-                if (downloadBtn) downloadBtn.addEventListener('click', (e) => { e.stopPropagation(); this.saveProfile(); });
+                if (duplicateBtn) {
+                    duplicateBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.duplicateProfile(index);
+                    });
+                }
                 if (deleteBtn) deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); this.deleteProfile(index); });
 
             } else {
@@ -196,8 +259,11 @@ export class ProfileManager {
         // Since we can't easily get layout before paint, we might need to wait or assume widths.
         // But we can use offsetLeft.
 
-        const containerWidth = this.container.offsetWidth; // This might be full width of children
+        const containerWidth = this.container.offsetWidth;
+        if (containerWidth === 0) return;
         const activeCenter = activeBar.offsetLeft + activeBar.offsetWidth / 2;
+        const containerCenter = containerWidth / 2;
+        const delta = containerCenter - activeCenter;
 
         // We want activeCenter to be at 0 relative to the container's transform origin?
         // Container is left: 50%, transform: translateX(-50%).
@@ -229,7 +295,32 @@ export class ProfileManager {
         // The container's origin (0,0) is at 50% of the screen width.
         // So if we translate by -ActiveCenter, the ActiveCenter will be at the origin (Screen Center).
 
-        const offset = -(activeBar.offsetLeft + activeBar.offsetWidth / 2);
-        this.container.style.transform = `translateX(${offset}px)`;
+        this.container.style.transform = `translateX(-50%) translateX(${Math.round(delta)}px)`;
+    }
+
+    getProfileCount() {
+        return this.profiles.length;
+    }
+
+    onProfileCountChange(listener) {
+        if (typeof listener !== 'function') {
+            return () => { };
+        }
+        this.profileCountListeners.add(listener);
+        listener(this.profiles.length);
+        return () => this.profileCountListeners.delete(listener);
+    }
+
+    #emitProfileCountChange() {
+        this.profileCountListeners.forEach((listener) => listener(this.profiles.length));
+    }
+
+    async #readProfileFile(file) {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data || typeof data !== 'object') {
+            throw new Error('Invalid profile data');
+        }
+        return data;
     }
 }

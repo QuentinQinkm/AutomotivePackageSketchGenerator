@@ -195,6 +195,7 @@
                     <div id="profileControls">
                         <div id="createNewProfileBtn">New</div>
                         <div id="uploadProfileBtn">Upload Profile</div>
+                        <div id="profileLimitMessage" class="profile-limit hidden">Reach 5 tabs limit</div>
                     </div>
 
                     <input type="file" id="loadProfileInput" accept=".json" style="display: none;">
@@ -308,6 +309,8 @@
                                 data-max="100" data-step="5"></div>
                             <div class="smart-adjuster" data-param="imageRotation" data-label="Rotation" data-min="-45"
                                 data-max="45" data-step="0.5"></div>
+                            <div class="smart-adjuster" data-param="imageScale" data-label="Scale" data-min="25"
+                                data-max="200" data-step="0.5" data-hide-value="true"></div>
 
                             <div class="smart-button" id="flipImageBtn">
                                 <div class="button-label">Flip</div>
@@ -323,10 +326,26 @@
                     </div>
                 </div>
 
+                <div class="profile-controls-overlay hidden" id="profileControlsOverlay">
+                    <div class="control-row">
+                        <div class="smart-button" id="profileResetBtn">
+                            <div class="button-label">Reset Canvas</div>
+                        </div>
+                        <div class="smart-button" id="profileOverwriteBtn">
+                            <div class="button-label">Overwrite Profile</div>
+                        </div>
+                        <div class="smart-button" id="profileDownloadBtn">
+                            <div class="button-label">Download Profile</div>
+                        </div>
+                    </div>
+                </div>
+                <input type="file" id="overwriteProfileInput" accept=".json" hidden>
+
                 <div class="layer-list">
                     <button class="layer-button active" data-layer="chassis">Chassis</button>
                     <button class="layer-button" data-layer="driver">Driver</button>
                     <button class="layer-button" data-layer="image">Image</button>
+                    <button class="layer-button" data-layer="profile">Profile</button>
                 </div>
             </main>
         </div>

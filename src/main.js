@@ -151,11 +151,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     const chassisOverlay = document.getElementById('chassisControls');
     const driverOverlay = document.getElementById('driverControls');
     const imageOverlay = document.getElementById('imageControls');
+    const profileOverlay = document.getElementById('profileControlsOverlay');
+    const controlsInfill = document.querySelector('.controls-infill');
+
+    const overlayElements = [chassisOverlay, driverOverlay, imageOverlay, profileOverlay].filter(Boolean);
+
+    const updateControlsBackdropOffset = () => {
+        if (!canvasArea) return;
+        const canvasRect = canvasArea.getBoundingClientRect();
+        const activeOverlay = overlayElements.find((overlay) => !overlay.classList.contains('hidden'));
+
+        let offset = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--controls-backdrop-offset'), 10);
+        if (!Number.isFinite(offset)) {
+            offset = 0;
+        }
+
+        if (activeOverlay) {
+            const overlayRect = activeOverlay.getBoundingClientRect();
+            offset = Math.round(canvasRect.bottom - overlayRect.top) + 20;
+        }
+
+        offset = Math.max(0, Math.min(canvasRect.height, offset));
+        document.documentElement.style.setProperty('--controls-backdrop-offset', `${offset}px`);
+
+        if (controlsInfill) {
+            if (offset > 0) {
+                controlsInfill.classList.add('visible');
+            } else {
+                controlsInfill.classList.remove('visible');
+            }
+        }
+    };
 
     const updateOverlays = (activeLayer) => {
         if (chassisOverlay) chassisOverlay.classList.toggle('hidden', activeLayer !== 'chassis');
         if (driverOverlay) driverOverlay.classList.toggle('hidden', activeLayer !== 'driver');
         if (imageOverlay) imageOverlay.classList.toggle('hidden', activeLayer !== 'image');
+        if (profileOverlay) profileOverlay.classList.toggle('hidden', activeLayer !== 'profile');
+        updateControlsBackdropOffset();
     };
 
     // Initial check
@@ -166,15 +199,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateOverlays(activeLayer); // Update overlays
     });
 
+    window.addEventListener('resize', updateControlsBackdropOffset);
+
     // Handle Interaction Dimming
     // Elements for interaction dimming
     const interactionElements = document.querySelectorAll('.smart-adjuster, .smart-toggle');
 
     // Handle Interaction Dimming
     stateManager.subscribeInteraction((activeParam) => {
-        const activeOverlay = !chassisOverlay.classList.contains('hidden') ? chassisOverlay :
-            !driverOverlay.classList.contains('hidden') ? driverOverlay :
-                !imageOverlay.classList.contains('hidden') ? imageOverlay : null;
+        const activeOverlay = overlayElements.find((overlay) => !overlay.classList.contains('hidden')) || null;
 
         if (!activeOverlay) return;
 
@@ -245,6 +278,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const createNewProfileBtn = document.getElementById('createNewProfileBtn');
     const uploadProfileBtn = document.getElementById('uploadProfileBtn');
     const loadProfileInput = document.getElementById('loadProfileInput');
+    const overwriteProfileInput = document.getElementById('overwriteProfileInput');
+    const profileResetBtn = document.getElementById('profileResetBtn');
+    const profileOverwriteBtn = document.getElementById('profileOverwriteBtn');
+    const profileDownloadBtn = document.getElementById('profileDownloadBtn');
+    const profileLimitMessage = document.getElementById('profileLimitMessage');
 
     if (createNewProfileBtn) {
         createNewProfileBtn.addEventListener('click', () => {
@@ -266,6 +304,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
+
+    const confirmReset = () => {
+        if (confirm('Reset canvas to default values? This will overwrite current changes.')) {
+            profileManager.resetCanvas();
+        }
+    };
+
+    if (profileResetBtn) {
+        profileResetBtn.addEventListener('click', confirmReset);
+    }
+
+    if (profileOverwriteBtn && overwriteProfileInput) {
+        profileOverwriteBtn.addEventListener('click', () => overwriteProfileInput.click());
+    }
+
+    if (overwriteProfileInput) {
+        overwriteProfileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                profileManager.overwriteProfileFromFile(e.target.files[0]);
+                e.target.value = '';
+            }
+        });
+    }
+
+    if (profileDownloadBtn) {
+        profileDownloadBtn.addEventListener('click', () => profileManager.saveProfile());
+    }
+
+    const syncProfileLimitUI = (count) => {
+        const limitReached = count >= 5;
+        if (createNewProfileBtn) createNewProfileBtn.classList.toggle('hidden', limitReached);
+        if (uploadProfileBtn) uploadProfileBtn.classList.toggle('hidden', limitReached);
+        if (profileLimitMessage) profileLimitMessage.classList.toggle('hidden', !limitReached);
+    };
+
+    profileManager.onProfileCountChange(syncProfileLimitUI);
 
     // Initial render
     stateManager.updateFromInputs();
