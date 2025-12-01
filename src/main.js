@@ -6,6 +6,7 @@ import { LayerController } from './ui/layerController.js';
 import { CanvasZoomController } from './ui/canvasZoomController.js';
 import { loadInlineSvgs } from './ui/inlineSvgLoader.js';
 import { SmartAdjuster } from './ui/smartAdjuster.js';
+import { ProfileManager } from './utils/profileManager.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const svg = document.getElementById('carCanvas');
@@ -237,6 +238,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     inputs.mannequinHeight.addEventListener('change', () => stateManager.updateFromInputs());
     inputs.showMannequin.addEventListener('change', () => stateManager.updateFromInputs());
+
+    // Initialize Profile Manager
+    const profileManager = new ProfileManager(stateManager);
+    const saveProfileBtn = document.getElementById('saveProfileBtn');
+    const loadProfileInput = document.getElementById('loadProfileInput');
+
+    if (saveProfileBtn) {
+        saveProfileBtn.addEventListener('click', () => profileManager.saveProfile());
+    }
+
+    if (loadProfileInput) {
+        loadProfileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                profileManager.loadProfile(e.target.files[0]);
+                e.target.value = '';
+            }
+        });
+    }
 
     // Initial render
     stateManager.updateFromInputs();

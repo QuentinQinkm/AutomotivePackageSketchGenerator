@@ -713,6 +713,25 @@ input[type=range]::-moz-range-thumb {
     pointer-events: none;
 }
 
+.save-profile-btn {
+    position: absolute;
+    top: 42px;
+    left: 50%;
+    transform: translateX(180px);
+    font-size: 10px;
+    font-weight: 300;
+    text-decoration: underline;
+    color: rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    z-index: 1000;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+}
+
+.save-profile-btn:hover {
+    color: #000;
+}
+
 .dimension-item {
     display: flex;
     align-items: center;
