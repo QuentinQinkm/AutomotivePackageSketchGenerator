@@ -696,40 +696,145 @@ input[type=range]::-moz-range-thumb {
     display: none !important;
 }
 
-#dimensionDisplay {
+#profileBarContainer {
     position: absolute;
     top: 27px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    z-index: 1000;
+    pointer-events: none;
+    /* Allow clicks to pass through container */
+    transition: transform 0.3s ease;
+}
+
+.profile-bar {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 26px;
+    justify-content: flex-start;
+    /* Ensure content starts at top */
     padding: 10px 21px;
     background: rgba(255, 255, 255, 0.5);
     border-radius: 30px;
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
-    z-index: 1000;
-    pointer-events: none;
+    pointer-events: auto;
+    transition: all 0.3s ease;
+    height: 44px;
+    width: fit-content;
+    overflow: hidden;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    /* Ensure padding is included in height */
 }
 
-.save-profile-btn {
+.profile-bar.active {
+    cursor: default;
+}
+
+.profile-bar:not(.active) {
+    opacity: 0.7;
+    transform: scale(0.95);
+    height: 35px;
+    /* Shorter height for inactive */
+    padding: 0 21px;
+    /* Remove vertical padding to center text */
+    justify-content: center;
+    /* Center text vertically */
+}
+
+.profile-bar:not(.active):hover {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.profile-bar.active:hover {
+    height: 77px;
+    box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.25);
+    padding-bottom: 10px;
+    /* Ensure bottom padding stays consistent */
+}
+
+#profileControls {
     position: absolute;
     top: 42px;
-    left: 50%;
-    transform: translateX(180px);
-    font-size: 10px;
-    font-weight: 300;
-    text-decoration: underline;
-    color: rgba(0, 0, 0, 0.6);
-    cursor: pointer;
+    right: 40px;
+    /* Position at top right corner */
+    display: flex;
+    gap: 20px;
     z-index: 1000;
-    white-space: nowrap;
-    transition: color 0.2s ease;
 }
 
-.save-profile-btn:hover {
-    color: #000;
+#createNewProfileBtn,
+#uploadProfileBtn {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    text-decoration: underline;
+    color: #000000;
+    opacity: 0.7;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+#createNewProfileBtn:hover,
+#uploadProfileBtn:hover {
+    opacity: 1;
+}
+
+.dimension-top-row {
+    display: flex;
+    align-items: center;
+    gap: 26px;
+    width: 100%;
+    justify-content: center;
+    height: 24px;
+}
+
+.profile-name {
+    font-size: 12px;
+    font-weight: 400;
+    color: #000000;
+    white-space: nowrap;
+}
+
+.profile-options {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    gap: 27px;
+    padding-left: 0;
+    margin-top: 14px;
+    opacity: 0;
+    transition: opacity 0.2s ease 0.1s;
+}
+
+.profile-bar.active:hover .profile-options {
+    opacity: 1;
+}
+
+.profile-option {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    text-decoration: underline;
+    color: #000000;
+    opacity: 0.7;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.2s ease;
+}
+
+.profile-option:hover {
+    opacity: 1;
+}
+
+.profile-option.danger {
+    color: #850000;
 }
 
 .dimension-item {
@@ -737,10 +842,11 @@ input[type=range]::-moz-range-thumb {
     align-items: center;
     gap: 10px;
     font-family: 'Inter', sans-serif;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 300;
-    letter-spacing: -0.02em;
-    color: #6f6f6f;
+    letter-spacing: -0.352px;
+    color: #000000;
+    opacity: 0.5;
     white-space: nowrap;
 }
 
@@ -750,8 +856,8 @@ input[type=range]::-moz-range-thumb {
 }
 
 .dim-value {
-    font-weight: 500;
-    color: #6f6f6f;
+    font-weight: inherit;
+    color: inherit;
 }
 
 .align-top-bar {

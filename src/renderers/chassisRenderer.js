@@ -482,8 +482,11 @@ export class ChassisRenderer {
                 const lengthMm = Math.round(bbox.width / SCALE);
                 const heightMm = Math.round((GROUND_Y - bbox.y) / SCALE);
 
-                if (this.dimLengthVal) this.dimLengthVal.textContent = `${lengthMm} mm`;
-                if (this.dimHeightVal) this.dimHeightVal.textContent = `${heightMm} mm`;
+                const dimLengthVal = document.getElementById('dimLengthVal');
+                const dimHeightVal = document.getElementById('dimHeightVal');
+
+                if (dimLengthVal) dimLengthVal.textContent = `${lengthMm}`;
+                if (dimHeightVal) dimHeightVal.textContent = `${heightMm}`;
             }
         } catch (e) {
             // ignore

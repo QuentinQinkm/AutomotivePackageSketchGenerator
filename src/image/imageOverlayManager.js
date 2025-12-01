@@ -196,6 +196,77 @@ export class ImageOverlayManager {
 
         this.imageFrame.classList.toggle('editing', isEditing);
         this.canvasArea.classList.toggle('editing-image', isEditing);
+
+        // Subscribe to state changes
+        this.stateManager.subscribe(state => {
+            // Handle Image Data (Source)
+            if (state.imageData !== this.lastImageData) {
+                this.lastImageData = state.imageData;
+                if (state.imageData) {
+                    this.hasImageOverlay = true;
+                    this.imageFrame.classList.add('has-image');
+                    this.overlayImage.src = state.imageData;
+                    this.#setAlignButtonAvailability(true);
+                    this.#updateImageEditingState();
+
+                    // Restore frame if available
+                    if (state.imageFrame && state.imageFrame.width > 0) {
+                        this.imageFrame.style.left = `${state.imageFrame.x}px`;
+                        this.imageFrame.style.top = `${state.imageFrame.y}px`;
+                        this.imageFrame.style.width = `${state.imageFrame.width}px`;
+                        this.imageFrame.style.height = `${state.imageFrame.height}px`;
+                    }
+                } else {
+                    this.hasImageOverlay = false;
+                    this.imageFrame.classList.remove('has-image');
+                    this.overlayImage.src = '';
+                    this.#setAlignButtonAvailability(false);
+                    this.#updateImageEditingState();
+                }
+            }
+
+            if (this.hasImageOverlay) {
+                // Opacity
+                this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 100) / 100;
+
+                // Rotation & Flip
+                let transformChanged = false;
+                if (state.imageRotation !== undefined && state.imageRotation !== this.imageRotation) {
+                    this.imageRotation = state.imageRotation;
+                    transformChanged = true;
+                }
+                if (state.imageFlipped !== undefined && state.imageFlipped !== this.imageFlipped) {
+                    this.imageFlipped = state.imageFlipped;
+                    transformChanged = true;
+                }
+
+                if (transformChanged) {
+                    this.#applyImageTransform();
+                }
+
+                // Frame Position (if updated externally, e.g. undo/redo or profile switch)
+                // We check if the DOM matches the state to avoid jitter during drag
+                if (state.imageFrame && state.imageFrame.width > 0 && !this.dragState && !this.resizeState) {
+                    const currentFrame = {
+                        x: parseFloat(this.imageFrame.style.left) || 0,
+                        y: parseFloat(this.imageFrame.style.top) || 0,
+                        width: parseFloat(this.imageFrame.style.width) || 0,
+                        height: parseFloat(this.imageFrame.style.height) || 0
+                    };
+
+                    if (Math.abs(currentFrame.x - state.imageFrame.x) > 1 ||
+                        Math.abs(currentFrame.y - state.imageFrame.y) > 1 ||
+                        Math.abs(currentFrame.width - state.imageFrame.width) > 1 ||
+                        Math.abs(currentFrame.height - state.imageFrame.height) > 1) {
+
+                        this.imageFrame.style.left = `${state.imageFrame.x}px`;
+                        this.imageFrame.style.top = `${state.imageFrame.y}px`;
+                        this.imageFrame.style.width = `${state.imageFrame.width}px`;
+                        this.imageFrame.style.height = `${state.imageFrame.height}px`;
+                    }
+                }
+            }
+        });
     }
 
     enterAlignMode() {
@@ -239,28 +310,29 @@ export class ImageOverlayManager {
         if (!file || !file.type.startsWith('image/')) return;
         const reader = new FileReader();
         reader.onload = () => {
-            this.overlayImage.onload = () => {
-                this.hasImageOverlay = true;
-                this.imageFrame.classList.add('has-image');
-                this.aspectRatio = this.overlayImage.naturalWidth / this.overlayImage.naturalHeight;
-                this.#resetImageFrame();
-                this.#setAlignButtonAvailability(true);
+            // We load it into an image object first to get dimensions/aspect ratio
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                this.aspectRatio = tempImg.naturalWidth / tempImg.naturalHeight;
 
-                // Initialize state
+                // Calculate initial frame
+                const frame = this.#calculateInitialFrame();
+
+                // Update state
                 this.stateManager.setState({
+                    imageData: reader.result,
                     imageOpacity: 100,
-                    imageRotation: 0
+                    imageRotation: 0,
+                    imageFlipped: false,
+                    imageFrame: frame
                 });
-
-                this.#applyImageTransform();
-                this.#updateImageEditingState();
             };
-            this.overlayImage.src = reader.result;
+            tempImg.src = reader.result;
         };
         reader.readAsDataURL(file);
     }
 
-    #resetImageFrame() {
+    #calculateInitialFrame() {
         // Calculate logical center based on current viewport
         const rect = this.canvasArea.getBoundingClientRect();
         const zoomScale = parseFloat(this.canvasArea.dataset.zoomScale || '1');
@@ -287,12 +359,16 @@ export class ImageOverlayManager {
             width = height * this.aspectRatio;
         }
 
-        this.imageFrame.style.width = `${width}px`;
-        this.imageFrame.style.height = `${height}px`;
+        return {
+            x: logicalCenterX - width / 2,
+            y: logicalCenterY - height / 2,
+            width: width,
+            height: height
+        };
+    }
 
-        // Center the frame on the logical center
-        this.imageFrame.style.left = `${logicalCenterX - width / 2}px`;
-        this.imageFrame.style.top = `${logicalCenterY - height / 2}px`;
+    #resetImageFrame() {
+        // Deprecated, logic moved to #calculateInitialFrame and state update
     }
 
     #applyImageTransform() {
@@ -440,6 +516,17 @@ export class ImageOverlayManager {
 
         this.stateManager.setState({ wheelBase: wheelBaseValue });
         this.#applyAlignmentTransform(wheelBaseValue);
+
+        // Save the new frame state after alignment
+        this.stateManager.setState({
+            imageFrame: {
+                x: parseFloat(this.imageFrame.style.left) || 0,
+                y: parseFloat(this.imageFrame.style.top) || 0,
+                width: parseFloat(this.imageFrame.style.width) || 0,
+                height: parseFloat(this.imageFrame.style.height) || 0
+            }
+        });
+
         this.exitAlignMode(true);
     }
 
@@ -448,16 +535,12 @@ export class ImageOverlayManager {
         const orderedDots = this.#getOrderedAlignDots();
         if (!orderedDots) return;
 
-        // frontDot is the dot with smaller X (Left on screen)
-        // rearDot is the dot with larger X (Right on screen)
         const { frontDot, rearDot } = orderedDots;
 
         const currentWidth = this.imageFrame.offsetWidth || 0;
         const currentHeight = this.imageFrame.offsetHeight || 0;
         if (currentWidth === 0 || currentHeight === 0) return;
 
-        // 1. Get current dot positions in pixels relative to center of imageFrame
-        // These are "Screen Pixels" relative to the unrotated frame box
         const center = { x: currentWidth / 2, y: currentHeight / 2 };
         const frontPx = {
             x: (frontDot.xRatio * currentWidth),
@@ -468,26 +551,19 @@ export class ImageOverlayManager {
             y: (rearDot.yRatio * currentHeight)
         };
 
-        // 2. Calculate Current Visual Vector & Angle
         const dx = rearPx.x - frontPx.x;
         const dy = rearPx.y - frontPx.y;
         const distPx = Math.hypot(dx, dy);
 
-        if (distPx < 1) return; // Avoid division by zero
+        if (distPx < 1) return;
 
-        // Angle of the line on screen. We want this to be 0 (Horizontal).
         const currentAngleRad = Math.atan2(dy, dx);
         const currentAngleDeg = currentAngleRad * 180 / Math.PI;
 
-        // 3. Calculate New Rotation
-        // If we rotate the image by -currentAngleDeg, the visual line rotates by -currentAngleDeg, becoming 0.
-        // This works regardless of flip state because we are operating on the visual output.
         const rotationCorrection = -currentAngleDeg;
         let normalizedRotation = this.imageRotation + rotationCorrection;
-        // Round to nearest 0.5 to avoid long decimals
         normalizedRotation = Math.round(normalizedRotation * 2) / 2;
 
-        // 4. Calculate New Scale
         const targetWheelBasePx = wheelBaseValue * SCALE;
         const scaleFactor = targetWheelBasePx / distPx;
 
@@ -496,23 +572,16 @@ export class ImageOverlayManager {
 
         if (newWidth < 1 || newHeight < 1) return;
 
-        // 5. Calculate New Positions of the Dots
-        // We need to know where the wheels will end up to position the frame.
-        // We map: Screen(Old) -> Source -> Screen(New)
-
         const sx = this.imageFlipped ? -1 : 1;
         const currentRotation = this.imageRotation;
 
-        // Map to Normalized Source (using OLD state)
         const normFront = this.#toNormalizedSource(frontPx, center, currentWidth, currentHeight, sx, currentRotation);
         const normRear = this.#toNormalizedSource(rearPx, center, currentWidth, currentHeight, sx, currentRotation);
 
-        // Map to Screen (using NEW state)
         const newCenter = { x: newWidth / 2, y: newHeight / 2 };
         const finalFrontPx = this.#fromNormalizedSource(normFront, newCenter, newWidth, newHeight, sx, normalizedRotation);
         const finalRearPx = this.#fromNormalizedSource(normRear, newCenter, newWidth, newHeight, sx, normalizedRotation);
 
-        // 6. Apply Transformations
         this.imageRotation = normalizedRotation;
         this.stateManager.setState({ imageRotation: normalizedRotation });
         this.#applyImageTransform();
@@ -520,8 +589,6 @@ export class ImageOverlayManager {
         this.imageFrame.style.width = `${newWidth}px`;
         this.imageFrame.style.height = `${newHeight}px`;
 
-        // 7. Position the Frame
-        // Align the midpoint of the new dot positions to the target chassis center
         const tireRadiusPx = (this.stateManager.state.tireDiameter / 2) * SCALE;
         const wheelCenterY = GROUND_Y - tireRadiusPx;
 
@@ -537,11 +604,6 @@ export class ImageOverlayManager {
         this.imageFrame.style.left = `${Math.round(offsetX)}px`;
         this.imageFrame.style.top = `${Math.round(offsetY)}px`;
 
-        // 8. Update Align Dots to match the new image state
-        // The dots are children of the frame. If we don't update them, they will stay at the old relative positions,
-        // but the image content (wheels) has moved relative to the frame due to rotation/scale.
-        // We pin them to the new wheel positions.
-
         frontDot.xRatio = finalFrontPx.x / newWidth;
         frontDot.yRatio = finalFrontPx.y / newHeight;
 
@@ -552,31 +614,21 @@ export class ImageOverlayManager {
     }
 
     #toNormalizedSource(pointPx, center, width, height, scaleX, rotationDeg) {
-        // Inverse Transform Chain:
-        // Screen -> Un-Center -> Un-Rotate -> Un-Flip -> Un-Scale -> Normalized
-
         const angleRad = rotationDeg * Math.PI / 180;
         const dx = pointPx.x - center.x;
         const dy = pointPx.y - center.y;
 
-        // 1. Un-Rotate
         const cos = Math.cos(-angleRad);
         const sin = Math.sin(-angleRad);
         const unrotatedX = (dx * cos) - (dy * sin);
         const unrotatedY = (dx * sin) + (dy * cos);
 
-        // 2. Un-Flip (Scale X)
-        // x' = x * sx  => x = x' / sx = x' * sx (since sx is 1 or -1)
         const unscaledX = unrotatedX * scaleX;
         const unscaledY = unrotatedY;
 
-        // 3. Un-Center (back to top-left origin of the image rect)
-        // The "Source" coordinates here are pixels relative to the image top-left
-        // But centered at (width/2, height/2)
         const srcX = unscaledX + (width / 2);
         const srcY = unscaledY + (height / 2);
 
-        // 4. Normalize
         return {
             x: srcX / width,
             y: srcY / height
@@ -584,22 +636,15 @@ export class ImageOverlayManager {
     }
 
     #fromNormalizedSource(normPoint, center, width, height, scaleX, rotationDeg) {
-        // Forward Transform Chain:
-        // Normalized -> Scale -> Center-Offset -> Flip -> Rotate -> Screen + Center
-
-        // 1. Denormalize to pixels (origin top-left)
         const srcX = normPoint.x * width;
         const srcY = normPoint.y * height;
 
-        // 2. Center Offset (relative to center)
         const centeredX = srcX - (width / 2);
         const centeredY = srcY - (height / 2);
 
-        // 3. Flip
         const flippedX = centeredX * scaleX;
         const flippedY = centeredY;
 
-        // 4. Rotate
         const angleRad = rotationDeg * Math.PI / 180;
         const cos = Math.cos(angleRad);
         const sin = Math.sin(angleRad);
@@ -607,7 +652,6 @@ export class ImageOverlayManager {
         const rotatedX = (flippedX * cos) - (flippedY * sin);
         const rotatedY = (flippedX * sin) + (flippedY * cos);
 
-        // 5. Screen Coordinates (relative to div top-left, so add center)
         return {
             x: rotatedX + center.x,
             y: rotatedY + center.y
@@ -645,7 +689,6 @@ export class ImageOverlayManager {
         if (!this.dragState) return;
         event.preventDefault();
         const point = this.#getNormalizedPoint(event);
-        // Removed clamping to allow free movement
         const nextLeft = this.dragState.left + (point.x - this.dragState.startX);
         const nextTop = this.dragState.top + (point.y - this.dragState.startY);
         this.imageFrame.style.left = `${nextLeft}px`;
@@ -656,6 +699,16 @@ export class ImageOverlayManager {
         this.dragState = null;
         window.removeEventListener('pointermove', this.boundDragMove);
         window.removeEventListener('pointerup', this.boundStopDrag);
+
+        // Save new position to state
+        this.stateManager.setState({
+            imageFrame: {
+                x: parseFloat(this.imageFrame.style.left) || 0,
+                y: parseFloat(this.imageFrame.style.top) || 0,
+                width: parseFloat(this.imageFrame.style.width) || 0,
+                height: parseFloat(this.imageFrame.style.height) || 0
+            }
+        });
     }
 
     #startResize(event) {
@@ -700,6 +753,16 @@ export class ImageOverlayManager {
         this.resizeState = null;
         window.removeEventListener('pointermove', this.boundResizeMove);
         window.removeEventListener('pointerup', this.boundStopResize);
+
+        // Save new size to state
+        this.stateManager.setState({
+            imageFrame: {
+                x: parseFloat(this.imageFrame.style.left) || 0,
+                y: parseFloat(this.imageFrame.style.top) || 0,
+                width: parseFloat(this.imageFrame.style.width) || 0,
+                height: parseFloat(this.imageFrame.style.height) || 0
+            }
+        });
     }
 
     #getNormalizedPoint(event) {

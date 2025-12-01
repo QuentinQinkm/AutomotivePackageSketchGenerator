@@ -240,12 +240,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     inputs.showMannequin.addEventListener('change', () => stateManager.updateFromInputs());
 
     // Initialize Profile Manager
+    // Initialize Profile Manager
     const profileManager = new ProfileManager(stateManager);
-    const saveProfileBtn = document.getElementById('saveProfileBtn');
+    const createNewProfileBtn = document.getElementById('createNewProfileBtn');
+    const uploadProfileBtn = document.getElementById('uploadProfileBtn');
     const loadProfileInput = document.getElementById('loadProfileInput');
 
-    if (saveProfileBtn) {
-        saveProfileBtn.addEventListener('click', () => profileManager.saveProfile());
+    if (createNewProfileBtn) {
+        createNewProfileBtn.addEventListener('click', () => {
+            profileManager.addProfile();
+        });
+    }
+
+    if (uploadProfileBtn) {
+        uploadProfileBtn.addEventListener('click', () => {
+            if (loadProfileInput) loadProfileInput.click();
+        });
     }
 
     if (loadProfileInput) {

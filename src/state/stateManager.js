@@ -44,7 +44,12 @@ export class StateManager {
             mannequinHeight: parseInt(this.inputs.mannequinHeight.value, 10),
             showMannequin: this.inputs.showMannequin.checked,
             bodyControlPoints: {},
-            nextControlPointId: 1
+            nextControlPointId: 1,
+            imageOpacity: 50,
+            imageRotation: 0,
+            imageData: null,
+            imageFlipped: false,
+            imageFrame: { x: 0, y: 0, width: 0, height: 0 }
         };
     }
 
@@ -133,12 +138,39 @@ export class StateManager {
             this.#syncInputValue(key, value);
         });
 
-        this.#syncValueDisplays();
+        if (!silent) {
+            this.notify();
+        }
+    }
+
+    replaceState(newState, { silent = false } = {}) {
+        if (!newState || typeof newState !== 'object') return;
+
+        // We want to keep the structure but replace values.
+        // However, if newState is missing keys that are in this.state, they should probably be reset or removed?
+        // For this app, we want to fully adopt newState.
+        // But we should probably preserve keys that are NOT in newState if they are essential?
+        // Actually, for profile switching, we want exact match.
+
+        // But we must be careful not to lose internal state if any.
+        // The state object seems to be just data.
+
+        // Let's merge newState into a fresh default state to ensure we have all keys, 
+        // effectively resetting anything not in newState to default.
+        const defaultState = this.#buildInitialState();
+        this.state = { ...defaultState, ...newState };
+
+        // Sync all inputs
+        Object.entries(this.state).forEach(([key, value]) => {
+            this.#syncInputValue(key, value);
+        });
 
         if (!silent) {
             this.notify();
         }
     }
+
+
 
     getState() {
         return this.state;

@@ -188,17 +188,15 @@
                         <!-- Elements will be drawn here by JS -->
                         <g id="drawingGroup"></g>
                     </svg>
-                    <div id="dimensionDisplay">
-                        <div class="dimension-item">
-                            <span class="dim-label">Length</span>
-                            <span class="dim-value" id="dimLengthVal">---- mm</span>
-                        </div>
-                        <div class="dimension-item">
-                            <span class="dim-label">Height</span>
-                            <span class="dim-value" id="dimHeightVal">---- mm</span>
-                        </div>
+                    <div id="profileBarContainer">
+                        <!-- Profiles will be rendered here by ProfileManager -->
                     </div>
-                    <div id="saveProfileBtn" class="save-profile-btn">Save Profile</div>
+
+                    <div id="profileControls">
+                        <div id="createNewProfileBtn">New</div>
+                        <div id="uploadProfileBtn">Upload Profile</div>
+                    </div>
+
                     <input type="file" id="loadProfileInput" accept=".json" style="display: none;">
                     <div id="alignTopBar" class="align-top-bar hidden">
                         <label for="alignWheelBaseInput" class="align-label">Wheelbase</label>
