@@ -945,10 +945,16 @@ export class ChassisRenderer {
                 circle.setAttribute('data-body-control-point', 'true');
                 circle.dataset.segmentId = segment.id;
                 circle.dataset.pointId = point.id.toString();
-                this.setSplineDotState(circle, false, SPLINE_DOT_RADIUS, SPLINE_DOT_ACTIVE_RADIUS);
+
+                // Support animation scaling
+                const scale = typeof point._scale === 'number' ? point._scale : 1;
+                const radius = SPLINE_DOT_RADIUS * scale;
+                const activeRadius = SPLINE_DOT_ACTIVE_RADIUS * scale;
+
+                this.setSplineDotState(circle, false, radius, activeRadius);
                 circle.style.cursor = 'pointer';
-                circle.addEventListener('mouseenter', () => this.setSplineDotState(circle, true, SPLINE_DOT_RADIUS, SPLINE_DOT_ACTIVE_RADIUS));
-                circle.addEventListener('mouseleave', () => this.setSplineDotState(circle, false, SPLINE_DOT_RADIUS, SPLINE_DOT_ACTIVE_RADIUS));
+                circle.addEventListener('mouseenter', () => this.setSplineDotState(circle, true, radius, activeRadius));
+                circle.addEventListener('mouseleave', () => this.setSplineDotState(circle, false, radius, activeRadius));
                 circle.addEventListener('mousedown', (event) => {
                     if (!this.layerController.isActive('chassis')) return;
                     event.stopPropagation();

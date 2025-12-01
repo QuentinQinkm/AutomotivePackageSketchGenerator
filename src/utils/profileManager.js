@@ -28,7 +28,7 @@ export class ProfileManager {
         }
 
         const shouldStripImageState = !data;
-        const sourceState = data || this.stateManager.getState();
+        const sourceState = data || this.defaultState;
         const snapshot = this.roundValues(sourceState);
 
         if (shouldStripImageState) {
@@ -54,11 +54,216 @@ export class ProfileManager {
         this.activeProfileIndex = index;
         const profile = this.profiles[index];
 
-        // Render first to create the DOM elements
+        // Render first to create the DOM elements (update active class)
         this.render();
 
-        // Then update state, which triggers notify -> ChassisRenderer updates the new DOM
-        this.stateManager.replaceState(profile.data);
+        // Animate to the new state
+        this.animateToState(profile.data);
+    }
+
+    animateToState(targetState, duration = 300) {
+        if (this.animationFrameId) {
+            cancelAnimationFrame(this.animationFrameId);
+            this.animationFrameId = null;
+        }
+
+        const startState = this.stateManager.getState();
+        const startTime = performance.now();
+
+        // Identify numeric keys to interpolate
+        const numericKeys = Object.keys(targetState).filter(key =>
+            typeof targetState[key] === 'number' &&
+            typeof startState[key] === 'number' &&
+            key !== 'nextControlPointId' // Don't animate IDs
+        );
+
+        // Prepare Control Point Animations
+        const controlPointAnimations = [];
+        const startPoints = startState.bodyControlPoints || {};
+        const targetPoints = targetState.bodyControlPoints || {};
+        const allSegmentIds = new Set([...Object.keys(startPoints), ...Object.keys(targetPoints)]);
+
+        allSegmentIds.forEach(segmentId => {
+            const sList = startPoints[segmentId] || [];
+            const tList = targetPoints[segmentId] || [];
+            const processedTargetIds = new Set();
+
+            // 1. Handle Start Points (Matching & Disappearing)
+            sList.forEach(sPoint => {
+                const tPoint = tList.find(p => p.id === sPoint.id);
+                if (tPoint) {
+                    // Matching: Animate Start -> Target
+                    processedTargetIds.add(tPoint.id);
+                    controlPointAnimations.push({
+                        segmentId,
+                        start: sPoint,
+                        target: tPoint
+                    });
+                } else {
+                    // Disappearing: Animate Start -> Neutral
+                    const neutral = {
+                        ...sPoint,
+                        offsetParallel: 0,
+                        offsetPerpendicular: 0,
+                        handleIn: { parallel: 0, perpendicular: 0 },
+                        handleOut: { parallel: 0, perpendicular: 0 }
+                    };
+                    controlPointAnimations.push({
+                        segmentId,
+                        start: sPoint,
+                        target: neutral
+                    });
+                }
+            });
+
+            // 2. Handle Appearing Points (Target points not in Start)
+            tList.forEach(tPoint => {
+                if (!processedTargetIds.has(tPoint.id)) {
+                    // Appearing: Animate Neutral -> Target
+                    const neutral = {
+                        ...tPoint,
+                        offsetParallel: 0,
+                        offsetPerpendicular: 0,
+                        handleIn: { parallel: 0, perpendicular: 0 },
+                        handleOut: { parallel: 0, perpendicular: 0 }
+                    };
+                    controlPointAnimations.push({
+                        segmentId,
+                        start: neutral,
+                        target: tPoint
+                    });
+                }
+            });
+        });
+
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Ease out cubic
+            const ease = 1 - Math.pow(1 - progress, 3);
+
+            const nextState = { ...startState };
+
+            // 1. Interpolate numbers
+            numericKeys.forEach(key => {
+                nextState[key] = startState[key] + (targetState[key] - startState[key]) * ease;
+            });
+
+            // 2. Interpolate Control Points
+            if (controlPointAnimations.length > 0) {
+                const nextBodyPoints = {};
+
+                controlPointAnimations.forEach(anim => {
+                    const { segmentId, start, target } = anim;
+                    if (!nextBodyPoints[segmentId]) {
+                        nextBodyPoints[segmentId] = [];
+                    }
+
+                    const interpolatedPoint = { ...start }; // Copy base props (id, mode, etc.)
+
+                    // Interpolate t
+                    interpolatedPoint.t = start.t + (target.t - start.t) * ease;
+
+                    // Interpolate offsets
+                    interpolatedPoint.offsetParallel = start.offsetParallel + (target.offsetParallel - start.offsetParallel) * ease;
+                    interpolatedPoint.offsetPerpendicular = start.offsetPerpendicular + (target.offsetPerpendicular - start.offsetPerpendicular) * ease;
+
+                    // Interpolate handles
+                    interpolatedPoint.handleIn = {
+                        parallel: start.handleIn.parallel + (target.handleIn.parallel - start.handleIn.parallel) * ease,
+                        perpendicular: start.handleIn.perpendicular + (target.handleIn.perpendicular - start.handleIn.perpendicular) * ease
+                    };
+                    interpolatedPoint.handleOut = {
+                        parallel: start.handleOut.parallel + (target.handleOut.parallel - start.handleOut.parallel) * ease,
+                        perpendicular: start.handleOut.perpendicular + (target.handleOut.perpendicular - start.handleOut.perpendicular) * ease
+                    };
+
+                    // Handle Scale Animation (Appear/Disappear)
+                    // If target is neutral (disappearing), scale 1 -> 0
+                    // If start is neutral (appearing), scale 0 -> 1
+                    // If both real, scale 1
+                    let scale = 1;
+                    const isStartNeutral = start.offsetParallel === 0 && start.offsetPerpendicular === 0 && start.handleIn.parallel === 0; // Heuristic
+                    const isTargetNeutral = target.offsetParallel === 0 && target.offsetPerpendicular === 0 && target.handleIn.parallel === 0; // Heuristic
+
+                    // Better check: check if it was marked as disappearing/appearing in setup
+                    // We can infer from the animation setup logic:
+                    // Disappearing: target was created as neutral from start point
+                    // Appearing: start was created as neutral from target point
+
+                    // Let's use the fact that we created 'neutral' objects in the setup phase.
+                    // But we don't have that flag here.
+                    // Let's check existence in original lists.
+                    const existsInStart = startPoints[segmentId]?.some(p => p.id === start.id);
+                    const existsInTarget = targetPoints[segmentId]?.some(p => p.id === target.id);
+
+                    if (existsInStart && !existsInTarget) {
+                        // Disappearing
+                        scale = 1 - ease;
+                    } else if (!existsInStart && existsInTarget) {
+                        // Appearing
+                        scale = ease;
+                    }
+                    interpolatedPoint._scale = scale;
+
+                    nextBodyPoints[segmentId].push(interpolatedPoint);
+                });
+
+                nextState.bodyControlPoints = nextBodyPoints;
+            } else {
+                nextState.bodyControlPoints = startPoints;
+            }
+
+            // 3. Handle Image Opacity Transition
+            // If image data changes, we fade out current, swap, fade in target.
+            // But we can't swap in middle easily with this structure.
+            // Simplified: 
+            // If start has image and target has none: fade opacity to 0.
+            // If start has none and target has image: set image immediately but fade opacity 0 -> target.
+            // If both have different images: fade out? (Not handled perfectly here, just crossfade opacity if same image, or jump if diff)
+
+            const startImg = startState.imageData;
+            const targetImg = targetState.imageData;
+
+            if (startImg !== targetImg) {
+                if (startImg && !targetImg) {
+                    // Fading out
+                    nextState.imageOpacity = startState.imageOpacity * (1 - ease);
+                    nextState.imageData = startImg; // Keep image until end
+                } else if (!startImg && targetImg) {
+                    // Fading in
+                    nextState.imageData = targetImg; // Show image immediately
+                    nextState.imageOpacity = (targetState.imageOpacity || 50) * ease;
+                } else {
+                    // Different images. Hard to crossfade without two layers.
+                    // Just fade out then in? Or just swap.
+                    // For now, let's just swap at 50%?
+                    // Or just let it be instant swap.
+                    // Let's just animate opacity to target opacity.
+                    // If we want "smooth appear/disappear", usually implies presence.
+                }
+            }
+
+            // 4. For other non-numeric types, keep start value until the very end
+            Object.keys(targetState).forEach(key => {
+                if (!numericKeys.includes(key) && key !== 'bodyControlPoints' && key !== 'imageOpacity' && key !== 'imageData') {
+                    nextState[key] = startState[key];
+                }
+            });
+
+            this.stateManager.replaceState(nextState);
+
+            if (progress < 1) {
+                this.animationFrameId = requestAnimationFrame(animate);
+            } else {
+                this.animationFrameId = null;
+                // Ensure final state is exactly targetState
+                this.stateManager.replaceState(targetState);
+            }
+        };
+
+        this.animationFrameId = requestAnimationFrame(animate);
     }
 
     saveProfile() {
