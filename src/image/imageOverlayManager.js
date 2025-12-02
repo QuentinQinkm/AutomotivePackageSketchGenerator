@@ -850,12 +850,43 @@ export class ImageOverlayManager {
         return this.layerController ? this.layerController.isActive('image') : true;
     }
 
+    #createGhost() {
+        const ghost = document.createElement('div');
+        ghost.className = 'image-frame has-image';
+        ghost.style.position = 'absolute';
+        ghost.style.left = this.imageFrame.style.left;
+        ghost.style.top = this.imageFrame.style.top;
+        ghost.style.width = this.imageFrame.style.width;
+        ghost.style.height = this.imageFrame.style.height;
+        ghost.style.pointerEvents = 'none';
+        ghost.style.zIndex = '10';
+        ghost.style.transition = 'opacity 0.5s ease';
+        ghost.style.opacity = this.overlayImage.style.opacity || '0.5';
+
+        const img = this.overlayImage.cloneNode(true);
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'contain';
+        img.style.display = 'block';
+        ghost.appendChild(img);
+
+        this.canvasArea.appendChild(ghost);
+        return ghost;
+    }
+
     #handleStateSync(state) {
         const imageChanged = state.imageData !== this.lastImageData;
+        let skipOpacityUpdate = false;
 
         if (imageChanged) {
+            const oldImageData = this.lastImageData;
             this.lastImageData = state.imageData;
-            if (state.imageData) {
+
+            // Case 1: Image -> Image (Cross-fade)
+            if (oldImageData && state.imageData) {
+                const ghost = this.#createGhost();
+
+                // Update Real Frame
                 this.hasImageOverlay = true;
                 this.imageFrame.classList.add('has-image');
                 this.overlayImage.src = state.imageData;
@@ -863,7 +894,59 @@ export class ImageOverlayManager {
                 if (state.imageFrame && state.imageFrame.width > 0) {
                     this.#applyFrameState(state.imageFrame);
                 }
-            } else {
+
+                // Start Transition
+                this.isCrossFading = true;
+                skipOpacityUpdate = true;
+
+                // Real Image starts invisible
+                this.overlayImage.style.opacity = '0';
+                this.overlayImage.style.transition = 'opacity 0.5s ease';
+
+                requestAnimationFrame(() => {
+                    ghost.style.opacity = '0';
+                    this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 50) / 100;
+                });
+
+                const cleanup = () => {
+                    ghost.remove();
+                    this.isCrossFading = false;
+                    this.overlayImage.style.transition = '';
+                    // Ensure final opacity is set correctly
+                    this.overlayImage.style.opacity = (this.stateManager.state.imageOpacity !== undefined ? this.stateManager.state.imageOpacity : 50) / 100;
+                };
+                ghost.addEventListener('transitionend', cleanup);
+                setTimeout(cleanup, 600);
+            }
+            // Case 2: No Image -> Image (Fade In)
+            else if (!oldImageData && state.imageData) {
+                this.hasImageOverlay = true;
+                this.imageFrame.classList.add('has-image');
+                this.overlayImage.src = state.imageData;
+                this.#setAlignButtonAvailability(true);
+                if (state.imageFrame && state.imageFrame.width > 0) {
+                    this.#applyFrameState(state.imageFrame);
+                }
+
+                this.isCrossFading = true;
+                skipOpacityUpdate = true;
+                this.overlayImage.style.opacity = '0';
+                this.overlayImage.style.transition = 'opacity 0.5s ease';
+
+                requestAnimationFrame(() => {
+                    this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 50) / 100;
+                });
+
+                setTimeout(() => {
+                    this.isCrossFading = false;
+                    this.overlayImage.style.transition = '';
+                }, 500);
+            }
+            // Case 3: Image -> No Image (Fade Out)
+            else if (oldImageData && !state.imageData) {
+                const ghost = this.#createGhost();
+
+                // Hide Real Frame immediately
                 this.hasImageOverlay = false;
                 this.imageFrame.classList.remove('has-image');
                 this.overlayImage.src = '';
@@ -872,7 +955,15 @@ export class ImageOverlayManager {
                 this.#applyFrameState(this.#getEmptyFrame());
                 this.scaleBaseFrame = null;
                 this.imageScale = 100;
+
+                requestAnimationFrame(() => {
+                    ghost.style.opacity = '0';
+                });
+
+                ghost.addEventListener('transitionend', () => ghost.remove());
+                setTimeout(() => ghost.remove(), 600);
             }
+
             this.#updateImageEditingState();
         }
 
@@ -881,7 +972,9 @@ export class ImageOverlayManager {
         }
 
         // Opacity (state is 0-100, css expects 0-1)
-        this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 50) / 100;
+        if (!skipOpacityUpdate && !this.isCrossFading) {
+            this.overlayImage.style.opacity = (state.imageOpacity !== undefined ? state.imageOpacity : 50) / 100;
+        }
 
         // Rotation & flip
         let transformChanged = false;

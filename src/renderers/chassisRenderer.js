@@ -467,8 +467,8 @@ export class ChassisRenderer {
         groundLine.setAttribute('y1', GROUND_Y);
         groundLine.setAttribute('x2', 1920);
         groundLine.setAttribute('y2', GROUND_Y);
-        groundLine.setAttribute('stroke', 'rgba(255,255,255,0.1)');
-        groundLine.setAttribute('stroke-width', '2');
+        groundLine.setAttribute('stroke', 'rgba(255,255,255,0.5)');
+        groundLine.setAttribute('stroke-width', '4');
         linesGroup.appendChild(groundLine);
 
         // Update dimension labels even during animation so the UI doesn't briefly show placeholders
@@ -529,8 +529,9 @@ export class ChassisRenderer {
         circle.setAttribute('cx', cx);
         circle.setAttribute('cy', cy);
         circle.setAttribute('r', r);
-        circle.setAttribute('fill', 'rgba(255, 255, 255, 0.2)');
-        circle.setAttribute('stroke', 'none');
+        circle.setAttribute('fill', 'rgba(255, 255, 255, 0.4)');
+        circle.setAttribute('stroke', 'rgba(255, 255, 255, 0.8)');
+        circle.setAttribute('stroke-width', '2');
         linesGroup.appendChild(circle);
 
         if (showAxleHandle) {

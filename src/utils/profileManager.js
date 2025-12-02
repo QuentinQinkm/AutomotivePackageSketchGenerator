@@ -12,7 +12,10 @@ export class ProfileManager {
         this.addProfile('Profile 1', this.stateManager.getState(), true);
 
         // Subscribe to state changes to update the active profile's data
-        this.stateManager.subscribe((state) => {
+        this.stateManager.subscribe((state, context) => {
+            // Ignore updates caused by our own animation to prevent overwriting the profile with intermediate values
+            if (context && context.isAnimating) return;
+
             if (this.profiles[this.activeProfileIndex]) {
                 this.profiles[this.activeProfileIndex].data = { ...state };
                 this.updateDimensionsDisplay();
@@ -234,39 +237,39 @@ export class ProfileManager {
                 nextState.bodyControlPoints = startPoints;
             }
 
-            // 3. Handle Image Opacity Transition
-            // If image data changes, we fade out current, swap, fade in target.
-            // But we can't swap in middle easily with this structure.
-            // Simplified: 
-            // If start has image and target has none: fade opacity to 0.
-            // If start has none and target has image: set image immediately but fade opacity 0 -> target.
-            // If both have different images: fade out? (Not handled perfectly here, just crossfade opacity if same image, or jump if diff)
-
+            // 3. Handle Image Transition
             const startImg = startState.imageData;
             const targetImg = targetState.imageData;
+            const imageChanging = startImg !== targetImg;
 
-            if (startImg !== targetImg) {
-                if (startImg && !targetImg) {
-                    // Fading out
-                    nextState.imageOpacity = startState.imageOpacity * (1 - ease);
-                    nextState.imageData = startImg; // Keep image until end
-                } else if (!startImg && targetImg) {
-                    // Fading in
-                    nextState.imageData = targetImg; // Show image immediately
-                    nextState.imageOpacity = (targetState.imageOpacity || 50) * ease;
-                } else {
-                    // Different images. Hard to crossfade without two layers.
-                    // Just fade out then in? Or just swap.
-                    // For now, let's just swap at 50%?
-                    // Or just let it be instant swap.
-                    // Let's just animate opacity to target opacity.
-                    // If we want "smooth appear/disappear", usually implies presence.
+            if (imageChanging) {
+                // Different Image: Switch everything immediately to let ImageOverlayManager handle cross-fade
+                nextState.imageData = targetImg;
+                nextState.imageOpacity = targetState.imageOpacity;
+                nextState.imageFrame = targetState.imageFrame;
+                nextState.imageRotation = targetState.imageRotation;
+                nextState.imageFlipped = targetState.imageFlipped;
+                nextState.imageScale = targetState.imageScale;
+            } else {
+                // Same Image: Interpolate values for smooth slide/zoom
+                nextState.imageOpacity = startState.imageOpacity + (targetState.imageOpacity - startState.imageOpacity) * ease;
+
+                // Interpolate Frame
+                if (startState.imageFrame && targetState.imageFrame) {
+                    nextState.imageFrame = {
+                        x: startState.imageFrame.x + (targetState.imageFrame.x - startState.imageFrame.x) * ease,
+                        y: startState.imageFrame.y + (targetState.imageFrame.y - startState.imageFrame.y) * ease,
+                        width: startState.imageFrame.width + (targetState.imageFrame.width - startState.imageFrame.width) * ease,
+                        height: startState.imageFrame.height + (targetState.imageFrame.height - startState.imageFrame.height) * ease
+                    };
                 }
             }
 
             // 4. For other non-numeric types, keep start value until the very end
+            // We exclude image props we handled above
+            const handledProps = ['bodyControlPoints', 'imageOpacity', 'imageData', 'imageFrame', 'imageRotation', 'imageFlipped', 'imageScale'];
             Object.keys(targetState).forEach(key => {
-                if (!numericKeys.includes(key) && key !== 'bodyControlPoints' && key !== 'imageOpacity' && key !== 'imageData') {
+                if (!numericKeys.includes(key) && !handledProps.includes(key)) {
                     nextState[key] = startState[key];
                 }
             });
