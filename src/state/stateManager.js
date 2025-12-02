@@ -50,7 +50,8 @@ export class StateManager {
             imageScale: 100,
             imageData: null,
             imageFlipped: false,
-            imageFrame: { x: 0, y: 0, width: 0, height: 0 }
+            imageFrame: { x: 0, y: 0, width: 0, height: 0 },
+            showAssistLines: true
         };
     }
 

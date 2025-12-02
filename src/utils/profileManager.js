@@ -71,6 +71,11 @@ export class ProfileManager {
         }
 
         const startState = this.stateManager.getState();
+
+        // Preserve cross-profile settings
+        if (startState.hasOwnProperty('showAssistLines')) {
+            targetState = { ...targetState, showAssistLines: startState.showAssistLines };
+        }
         const startTime = performance.now();
         const handleDuration = 500; // Handles finish faster
 

@@ -144,6 +144,13 @@ export class ChassisRenderer {
         this.canvasArea.addEventListener('mousedown', this.handleCanvasMouseDown);
         this.dimLengthVal = document.getElementById('dimLengthVal');
         this.dimHeightVal = document.getElementById('dimHeightVal');
+        this.blindZoneDisplay = document.getElementById('blindZoneDisplay');
+        if (this.blindZoneDisplay) {
+            this.blindZoneDisplay.addEventListener('click', () => {
+                const currentState = this.stateManager.getState().showAssistLines;
+                this.stateManager.setState({ showAssistLines: !currentState });
+            });
+        }
     }
 
     destroy() {
@@ -470,6 +477,8 @@ export class ChassisRenderer {
         groundLine.setAttribute('stroke', 'rgba(255,255,255,0.5)');
         groundLine.setAttribute('stroke-width', '4');
         linesGroup.appendChild(groundLine);
+
+        this.drawVisualLine(linesGroup, frontWheelX, rearWheelX, wheelY, state);
 
         // Update dimension labels even during animation so the UI doesn't briefly show placeholders
         this.updateDimensions();
@@ -1610,10 +1619,244 @@ export class ChassisRenderer {
         };
     }
 
+    drawVisualLine(linesGroup, frontWheelX, rearWheelX, wheelY, state) {
+        // Remove existing line if it exists (for redraw) or if disabled
+        if (this.visualLineElement) {
+            this.visualLineElement.remove();
+            this.visualLineElement = null;
+        }
+        if (this.visualLineTextElement) {
+            this.visualLineTextElement.remove();
+            this.visualLineTextElement = null;
+        }
+
+        if (!state.showAssistLines) {
+            if (this.blindZoneDisplay) {
+                this.updateBlindZoneText('Front Blind Zone: OFF', false);
+                this.blindZoneDisplay.classList.remove('hidden');
+            }
+            return;
+        }
+
+        const headPos = this.stateManager.runtime?.headPosition;
+        if (!headPos) {
+            if (this.blindZoneDisplay) this.blindZoneDisplay.classList.add('hidden');
+            return;
+        }
+
+        const eyeX = headPos.x;
+        const eyeY = headPos.y + 20; // 20px below tophead
+
+        // Get Bonnet Segment
+        const segmentId = 'bonnet';
+
+        if (!this.latestSegments) {
+            if (this.blindZoneDisplay) this.blindZoneDisplay.classList.add('hidden');
+            return;
+        }
+        const activeSegment = this.latestSegments.find(s => s.id === segmentId);
+        if (!activeSegment) {
+            if (this.blindZoneDisplay) this.blindZoneDisplay.classList.add('hidden');
+            return;
+        }
+
+        const segmentInfo = this.segmentInfoMap.get(segmentId);
+        if (!segmentInfo) {
+            if (this.blindZoneDisplay) this.blindZoneDisplay.classList.add('hidden');
+            return;
+        }
+
+        const knots = this.buildSegmentKnots(segmentId, segmentInfo);
+
+        let maxSlope = -Infinity;
+
+        // Iterate through curve segments
+        for (let i = 0; i < knots.length - 1; i++) {
+            const startKnot = knots[i];
+            const endKnot = knots[i + 1];
+
+            const p0 = startKnot.point;
+            const p3 = endKnot.point;
+            const p1 = startKnot.handleOutPoint || p0;
+            const p2 = endKnot.handleInPoint || p3;
+
+            // Sample
+            const steps = 20;
+            for (let j = 0; j <= steps; j++) {
+                const t = j / steps;
+                const mt = 1 - t;
+                const mt2 = mt * mt;
+                const mt3 = mt2 * mt;
+                const t2 = t * t;
+                const t3 = t2 * t;
+
+                const x = mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
+                const y = mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+
+                const dx = x - eyeX;
+                const dy = y - eyeY;
+                // Avoid division by zero
+                if (Math.abs(dx) < 0.001) continue;
+
+                // We want the ray that grazes the bonnet.
+                // Since eye is above (lower Y) and behind (larger X) the bonnet (usually),
+                // dx is negative, dy is positive. Slope is negative.
+                // Rays with steeper slope (more negative) go through the hood.
+                // Rays with shallower slope (less negative) go over the hood.
+                // We want the maximum slope (least negative).
+                const slope = dy / dx;
+                if (slope > maxSlope) {
+                    maxSlope = slope;
+                }
+            }
+        }
+
+        if (maxSlope === -Infinity) {
+            if (this.blindZoneDisplay) this.blindZoneDisplay.classList.add('hidden');
+            return;
+        }
+
+        // Calculate intersection with ground
+        // y = slope * (x - eyeX) + eyeY
+        // GROUND_Y = slope * (x - eyeX) + eyeY
+        // x - eyeX = (GROUND_Y - eyeY) / slope
+        // x = eyeX + (GROUND_Y - eyeY) / slope
+
+        const groundX = eyeX + (GROUND_Y - eyeY) / maxSlope;
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', eyeX);
+        line.setAttribute('y1', eyeY);
+        line.setAttribute('x2', groundX);
+        line.setAttribute('y2', GROUND_Y);
+        line.setAttribute('stroke', 'rgba(255, 0, 0, 0.5)');
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-dasharray', '4, 4');
+
+        if (linesGroup) {
+            linesGroup.appendChild(line);
+        } else if (this.linesGroup) {
+            this.linesGroup.appendChild(line);
+        }
+
+        this.visualLineElement = line;
+
+        // Calculate Blind Zone Data
+        // Distance: X value in mm from the intersect of the visual line and ground line to the front axle
+        // Height: Y value in mm from the tangent point of the front bonnet to ground
+
+        // We found maxSlope. The tangent point is where this slope occurs.
+        // We need to find the specific point (tangentX, tangentY) that yielded maxSlope.
+        // Let's re-iterate to find it (or store it in the loop above).
+
+        let tangentPoint = null;
+        // Re-run loop to find tangent point (optimizable but fine for now)
+        for (let i = 0; i < knots.length - 1; i++) {
+            const startKnot = knots[i];
+            const endKnot = knots[i + 1];
+            const p0 = startKnot.point;
+            const p3 = endKnot.point;
+            const p1 = startKnot.handleOutPoint || p0;
+            const p2 = endKnot.handleInPoint || p3;
+
+            const steps = 20;
+            for (let j = 0; j <= steps; j++) {
+                const t = j / steps;
+                const mt = 1 - t;
+                const mt2 = mt * mt;
+                const mt3 = mt2 * mt;
+                const t2 = t * t;
+                const t3 = t2 * t;
+                const x = mt3 * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
+                const y = mt3 * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+                const dx = x - eyeX;
+                const dy = y - eyeY;
+                if (Math.abs(dx) < 0.001) continue;
+                const slope = dy / dx;
+                if (Math.abs(slope - maxSlope) < 0.0001) {
+                    tangentPoint = { x, y };
+                    break;
+                }
+            }
+            if (tangentPoint) break;
+        }
+
+        if (tangentPoint) {
+            const wheelBasePx = state.wheelBase * SCALE;
+            const frontWheelX_calc = CENTER_X - (wheelBasePx / 2);
+
+            // Distance from ground intersection to front axle
+            const distancePx = frontWheelX_calc - groundX;
+            const distanceMm = Math.round(distancePx / SCALE);
+
+            // Height from tangent point to ground
+            const heightPx = GROUND_Y - tangentPoint.y;
+            const heightMm = Math.round(heightPx / SCALE);
+
+            // Render Text
+            if (this.blindZoneDisplay) {
+                this.updateBlindZoneText(`Front Blind Zone: Distance ${distanceMm}mm • Height ${heightMm}mm`, true);
+                this.blindZoneDisplay.classList.remove('hidden');
+            }
+        }
+    }
+
+    updateBlindZoneText(text, isActive) {
+        if (!this.blindZoneDisplay) return;
+
+        // If text is same, just ensure active class
+        if (this.blindZoneDisplay.textContent === text) {
+            if (isActive) this.blindZoneDisplay.classList.add('active');
+            else this.blindZoneDisplay.classList.remove('active');
+            return;
+        }
+
+        // Get current width
+        const startWidth = this.blindZoneDisplay.offsetWidth;
+
+        // Apply new text and class
+        this.blindZoneDisplay.textContent = text;
+        if (isActive) this.blindZoneDisplay.classList.add('active');
+        else this.blindZoneDisplay.classList.remove('active');
+
+        // Measure new width
+        this.blindZoneDisplay.style.width = 'auto';
+        const newWidth = this.blindZoneDisplay.offsetWidth;
+
+        // If widths are different, animate
+        if (startWidth !== newWidth && startWidth > 0) {
+            this.blindZoneDisplay.style.width = `${startWidth}px`;
+
+            // Force reflow
+            this.blindZoneDisplay.offsetHeight;
+
+            this.blindZoneDisplay.style.width = `${newWidth}px`;
+
+            // Clean up after transition
+            const cleanup = () => {
+                this.blindZoneDisplay.style.width = '';
+                this.blindZoneDisplay.removeEventListener('transitionend', cleanup);
+            };
+            this.blindZoneDisplay.addEventListener('transitionend', cleanup);
+        } else {
+            this.blindZoneDisplay.style.width = '';
+        }
+    }
+
     refreshBodyProfilePath() {
         if (!this.bodyProfilePathElement || !this.latestSegments) return;
         const path = this.buildBodyProfilePath(this.latestSegments);
         this.bodyProfilePathElement.setAttribute('d', path);
         this.updateDimensions();
+
+        // Update visual line live
+        const state = this.stateManager.getState();
+        // We need to pass wheel positions. 
+        // Since we don't store them, we can recalculate them or pass nulls if drawVisualLine doesn't strictly need them 
+        // (it uses them via latestSegments/segmentInfoMap which are already updated).
+        // Actually drawVisualLine arguments frontWheelX etc are not used in the logic above! 
+        // It uses stateManager.runtime.headPosition and segments.
+        // So we can just pass nulls or dummy values for unused args.
+        this.drawVisualLine(null, 0, 0, 0, state);
     }
 }

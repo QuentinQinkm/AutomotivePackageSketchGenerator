@@ -694,11 +694,12 @@ input[type=range]::-moz-range-thumb {
 
 #profileBarContainer {
     position: absolute;
-    top: 27px;
+    top: auto;
+    bottom: var(--controls-content-height, 120px);
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    align-items: flex-start;
+    align-items: flex-end;
     gap: 20px;
     z-index: 1000;
     pointer-events: none;
@@ -708,7 +709,7 @@ input[type=range]::-moz-range-thumb {
 
 .profile-bar {
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     align-items: center;
     justify-content: flex-start;
     /* Ensure content starts at top */
@@ -751,8 +752,8 @@ input[type=range]::-moz-range-thumb {
 .profile-bar.active:hover {
     height: 77px;
     box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.25);
-    padding-bottom: 10px;
-    /* Ensure bottom padding stays consistent */
+    padding-top: 10px;
+    /* Ensure top padding stays consistent */
 }
 
 .profile-controls-overlay {
@@ -779,15 +780,17 @@ input[type=range]::-moz-range-thumb {
     gap: 10px;
 }
 
-.profile-controls-overlay .smart-button {
+.profile-controls-overlay .smart-button,
+.profile-controls-overlay .smart-toggle {
     pointer-events: auto;
 }
 
 #profileControls {
     position: absolute;
-    top: 42px;
+    top: 27px;
     right: 40px;
-    /* Position at top right corner */
+    height: 35px;
+    /* Match height of blind zone display */
     display: flex;
     gap: 20px;
     z-index: 1000;
@@ -842,7 +845,7 @@ input[type=range]::-moz-range-thumb {
     justify-content: center;
     gap: 27px;
     padding-left: 0;
-    margin-top: 14px;
+    margin-bottom: 14px;
     opacity: 0;
     transition: opacity 0.2s ease 0.1s;
 }
@@ -978,12 +981,12 @@ input[type=range]::-moz-range-thumb {
     top: max(0px, calc(100% - var(--controls-backdrop-offset, 320px)));
     bottom: 0px;
     background: rgba(217, 217, 217, 0.65);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
     z-index: 50;
     pointer-events: none;
-    border-radius: 24px 24px 0 0;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 100px);
+    mask-image: linear-gradient(to bottom, transparent, black 100px);
     opacity: 0;
     transition: opacity 0.35s ease;
 }
@@ -1049,7 +1052,8 @@ body.align-mode .controls-infill,
 body.align-mode .layer-list,
 body.align-mode .chassis-controls-overlay,
 body.align-mode .driver-controls-overlay,
-body.align-mode .image-controls-overlay {
+body.align-mode .image-controls-overlay,
+body.align-mode .blind-zone-display {
     opacity: 0;
     visibility: hidden;
     pointer-events: none !important;
@@ -1065,4 +1069,61 @@ body.align-mode #alignTopBar:not(.hidden) {
 
 body.align-mode #carCanvas {
     transition: opacity 0.2s ease;
+}
+
+.blind-zone-display {
+    position: absolute;
+    top: 27px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 21px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 30px;
+    -webkit-backdrop-filter: blur(15px);
+    backdrop-filter: blur(15px);
+    border: none;
+    box-shadow: none;
+    z-index: 1000;
+
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    color: rgba(0, 0, 0, 0.4);
+
+    white-space: nowrap;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+
+    /* Inactive state */
+    opacity: 0.7;
+}
+
+.blind-zone-display:hover {
+    opacity: 0.7;
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.blind-zone-display.active {
+    color: rgba(0, 0, 0, 0.6);
+    background: rgba(255, 255, 255, 0.5);
+    opacity: 1;
+    box-shadow: none;
+}
+
+.blind-zone-display.active:hover {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    color: #000000;
+}
+
+.blind-zone-display.hidden {
+    opacity: 0;
+    visibility: hidden;
 }

@@ -110,8 +110,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const render = (state, context) => {
-        chassisRenderer.draw(context);
         humanFigureRenderer.update(context);
+        chassisRenderer.draw(context);
     };
 
     // Initialize Smart Adjusters
@@ -145,6 +145,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Handle Assist Line Toggle
+    const showAssistLineToggle = document.getElementById('showAssistLineToggle');
+    if (showAssistLineToggle) {
+        const toggleValue = showAssistLineToggle.querySelector('.toggle-value');
+
+        showAssistLineToggle.addEventListener('click', () => {
+            const currentState = stateManager.state.showAssistLines;
+            stateManager.setState({ showAssistLines: !currentState });
+        });
+
+        // Sync initial state
+        stateManager.subscribe((state) => {
+            const isOn = state.showAssistLines;
+            if (isOn) {
+                showAssistLineToggle.classList.add('on');
+                showAssistLineToggle.classList.remove('off');
+                toggleValue.textContent = 'ON';
+            } else {
+                showAssistLineToggle.classList.add('off');
+                showAssistLineToggle.classList.remove('on');
+                toggleValue.textContent = 'OFF';
+            }
+        });
+    }
+
     stateManager.subscribe(render);
 
     // Handle Layer Switching for Overlays
@@ -168,7 +193,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (activeOverlay) {
             const overlayRect = activeOverlay.getBoundingClientRect();
-            offset = Math.round(canvasRect.bottom - overlayRect.top) + 20;
+            // The visual start of the controls (without the gradient buffer)
+            const contentHeight = Math.round(canvasRect.bottom - overlayRect.top);
+            // The backdrop height (with gradient buffer)
+            offset = contentHeight + 120;
+
+            document.documentElement.style.setProperty('--controls-content-height', `${contentHeight + 20}px`);
+        } else {
+            document.documentElement.style.setProperty('--controls-content-height', `20px`);
         }
 
         offset = Math.max(0, Math.min(canvasRect.height, offset));

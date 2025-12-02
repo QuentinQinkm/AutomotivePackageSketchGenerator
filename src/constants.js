@@ -9,7 +9,7 @@ export const SPLINE_DOT_ACTIVE_RADIUS = 7;
 export const SPLINE_HANDLE_RADIUS = 5;
 
 export const SCALE = 0.25;
-export const GROUND_Y = 650; // Moved up from 750
+export const GROUND_Y = 590; // Moved up from 650
 export const CENTER_X = 960;
 
 export const BODY_POINT_CONFIG = {

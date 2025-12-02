@@ -325,6 +325,10 @@ export class HumanFigureRenderer {
         const handWorldX = targetHipX + (finalHandXAsset - assetHipGlobalX) * globalScale;
         const handWorldY = targetHipY + (finalHandYAsset - assetHipGlobalY) * globalScale;
 
+        // Store head position for ChassisRenderer to use for visual lines
+        this.stateManager.runtime = this.stateManager.runtime || {};
+        this.stateManager.runtime.headPosition = { x: headWorldX, y: headWorldY };
+
         const driverGeometry = {
             frontWheelX,
             floorY,

@@ -208,6 +208,9 @@
                         </div>
                         <button type="button" id="alignConfirmBtn" class="align-confirm-btn" disabled>Confirm</button>
                     </div>
+                    <div id="blindZoneDisplay" class="blind-zone-display hidden">
+                        Front Blind Zone: Distance -- • Height --
+                    </div>
                     <div class="canvas-content" id="canvasContent">
                         <div class="bodyandhead-parent">
                             <div class="bodyandhead-icon" data-inline-svg="HumanFigure/BodyAndHead.svg"
@@ -330,6 +333,10 @@
                     <div class="control-row">
                         <div class="smart-button" id="profileResetBtn">
                             <div class="button-label">Reset Canvas</div>
+                        </div>
+                        <div class="smart-toggle on" id="showAssistLineToggle">
+                            <div class="toggle-label">Visual Line</div>
+                            <div class="toggle-value">ON</div>
                         </div>
                         <div class="smart-button" id="profileOverwriteBtn">
                             <div class="button-label">Overwrite Profile</div>
