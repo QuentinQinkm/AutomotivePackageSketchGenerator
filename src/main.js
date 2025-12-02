@@ -145,30 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Handle Assist Line Toggle
-    const showAssistLineToggle = document.getElementById('showAssistLineToggle');
-    if (showAssistLineToggle) {
-        const toggleValue = showAssistLineToggle.querySelector('.toggle-value');
 
-        showAssistLineToggle.addEventListener('click', () => {
-            const currentState = stateManager.state.showAssistLines;
-            stateManager.setState({ showAssistLines: !currentState });
-        });
-
-        // Sync initial state
-        stateManager.subscribe((state) => {
-            const isOn = state.showAssistLines;
-            if (isOn) {
-                showAssistLineToggle.classList.add('on');
-                showAssistLineToggle.classList.remove('off');
-                toggleValue.textContent = 'ON';
-            } else {
-                showAssistLineToggle.classList.add('off');
-                showAssistLineToggle.classList.remove('on');
-                toggleValue.textContent = 'OFF';
-            }
-        });
-    }
 
     stateManager.subscribe(render);
 
