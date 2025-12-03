@@ -342,6 +342,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         profileDownloadBtn.addEventListener('click', () => profileManager.saveProfile());
     }
 
+    const downloadSvgBtn = document.getElementById('downloadSvgBtn');
+    if (downloadSvgBtn) {
+        downloadSvgBtn.addEventListener('click', () => profileManager.downloadSVG());
+    }
+
     const syncProfileLimitUI = (count) => {
         const limitReached = count >= 5;
         if (createNewProfileBtn) createNewProfileBtn.classList.toggle('hidden', limitReached);

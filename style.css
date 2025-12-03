@@ -853,6 +853,14 @@ input[type=range]::-moz-range-thumb {
     white-space: nowrap;
 }
 
+.profile-bar.active .profile-name {
+    cursor: pointer;
+}
+
+.profile-bar.active .profile-name:hover {
+    text-decoration: underline;
+}
+
 .profile-options {
     display: flex;
     width: 100%;

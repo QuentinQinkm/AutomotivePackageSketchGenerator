@@ -430,6 +430,169 @@ export class ProfileManager {
         }
     }
 
+    downloadSVG() {
+        const svg = document.getElementById('carCanvas');
+        if (!svg) return;
+
+        let viewBoxStr = null;
+        let widthStr = null;
+        let heightStr = null;
+        let mergedPathD = '';
+        const tires = [];
+        let strokeColor = '#000000'; // Default
+
+        try {
+            const drawingGroup = svg.querySelector('#drawingGroup');
+            if (drawingGroup) {
+                const mainGroup = drawingGroup.firstElementChild;
+                if (mainGroup) {
+                    const linesGroup = mainGroup.firstElementChild;
+                    if (linesGroup) {
+                        // 1. Calculate BBox
+                        const bbox = linesGroup.getBBox();
+                        if (bbox && bbox.width > 0 && bbox.height > 0) {
+                            const padding = 20;
+                            const x = bbox.x - padding;
+                            const y = bbox.y - padding;
+                            const w = bbox.width + (padding * 2);
+                            const h = bbox.height + (padding * 2);
+                            viewBoxStr = `${x} ${y} ${w} ${h}`;
+                            widthStr = `${w}px`;
+                            heightStr = `${h}px`;
+                        }
+
+                        // 2. Identify Elements
+                        // Expected Order: BodyContour(Path), FrontBumper(Line), RearBumper(Line), BodyProfile(Path), Tires(Circles...)
+                        const children = Array.from(linesGroup.children);
+                        const bodyContour = children.find(el => el.tagName === 'path' && el.getAttribute('d').includes('A'));
+                        const bodyProfile = children.find(el => el.tagName === 'path' && !el.getAttribute('d').includes('A'));
+                        const lines = children.filter(el => el.tagName === 'line');
+                        const circles = children.filter(el => el.tagName === 'circle');
+
+                        // Get Stroke Color from one of the elements
+                        if (bodyProfile) {
+                            strokeColor = bodyProfile.getAttribute('stroke') || strokeColor;
+                        }
+
+                        // 3. Merge Paths
+                        if (bodyContour && bodyProfile && lines.length >= 2) {
+                            // Parse Body Contour (Bottom + Arches)
+                            // Format: M P1x P1y A ... P2x P2y L P3x P3y A ... P4x P4y
+                            const contourD = bodyContour.getAttribute('d');
+                            // Regex to capture the two Arcs and the Line
+                            // M x1 y1 A r1 r2 rot large sweep x2 y2 L x3 y3 A r3 r4 rot large sweep x4 y4
+                            const regex = /M\s+([-\d.]+)\s+([-\d.]+)\s+A\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([01])\s+1\s+([-\d.]+)\s+([-\d.]+)\s+L\s+([-\d.]+)\s+([-\d.]+)\s+A\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([01])\s+1\s+([-\d.]+)\s+([-\d.]+)/;
+                            const match = contourD.match(regex);
+
+                            if (match) {
+                                const [_, p1x, p1y, r1x, r1y, rot1, large1, p2x, p2y, p3x, p3y, r2x, r2y, rot2, large2, p4x, p4y] = match;
+
+                                // Identify Bumpers
+                                // Front Bumper connects to P1 (Front Arch Start)
+                                // Rear Bumper connects to P4 (Rear Arch End)
+                                const frontBumper = lines.find(l => {
+                                    const x2 = parseFloat(l.getAttribute('x2'));
+                                    const y2 = parseFloat(l.getAttribute('y2'));
+                                    return Math.abs(x2 - parseFloat(p1x)) < 1;
+                                });
+
+                                const rearBumper = lines.find(l => {
+                                    const x2 = parseFloat(l.getAttribute('x2'));
+                                    const y2 = parseFloat(l.getAttribute('y2'));
+                                    return Math.abs(x2 - parseFloat(p4x)) < 1;
+                                });
+
+                                if (frontBumper && rearBumper) {
+                                    // Construct Merged Path
+                                    // 1. Top Profile (Front Tip -> Rear Tip)
+                                    let d = bodyProfile.getAttribute('d');
+
+                                    // 2. Rear Bumper (Rear Tip -> Rear Arch End P4)
+                                    // rearBumper is drawn Tip(x1) -> Arch(x2). We are at Tip (end of profile).
+                                    d += ` L ${rearBumper.getAttribute('x2')} ${rearBumper.getAttribute('y2')}`;
+
+                                    // 3. Reverse Body Contour (P4 -> P3 -> P2 -> P1)
+                                    // Reverse 2nd Arc: P4 -> P3. Sweep 1->0.
+                                    d += ` A ${r2x} ${r2y} ${rot2} ${large2} 0 ${p3x} ${p3y}`;
+                                    // Reverse Line: P3 -> P2
+                                    d += ` L ${p2x} ${p2y}`;
+                                    // Reverse 1st Arc: P2 -> P1. Sweep 1->0.
+                                    d += ` A ${r1x} ${r1y} ${rot1} ${large1} 0 ${p1x} ${p1y}`;
+
+                                    // 4. Front Bumper (P1 -> Front Tip)
+                                    // frontBumper is drawn Tip(x1) -> Arch(x2). We are at P1(x2). Go to Tip(x1).
+                                    d += ` L ${frontBumper.getAttribute('x1')} ${frontBumper.getAttribute('y1')}`;
+
+                                    // 5. Close
+                                    d += ' Z';
+
+                                    mergedPathD = d;
+                                }
+                            }
+                        }
+
+                        // 4. Collect Tires
+                        circles.forEach(c => {
+                            tires.push(c.cloneNode(true));
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Error processing SVG for download:', e);
+        }
+
+        // Create new SVG
+        const newSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        newSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        if (viewBoxStr) {
+            newSvg.setAttribute('viewBox', viewBoxStr);
+            newSvg.setAttribute('width', widthStr);
+            newSvg.setAttribute('height', heightStr);
+        } else {
+            // Fallback to original viewBox if calculation failed
+            const originalViewBox = svg.getAttribute('viewBox');
+            if (originalViewBox) newSvg.setAttribute('viewBox', originalViewBox);
+        }
+
+        // Append Merged Path
+        if (mergedPathD) {
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute('d', mergedPathD);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', strokeColor);
+            path.setAttribute('stroke-width', '4');
+            path.setAttribute('stroke-linejoin', 'round');
+            path.setAttribute('stroke-linecap', 'round');
+            newSvg.appendChild(path);
+        } else {
+            // Fallback: just clone the whole linesGroup if merge failed
+            // (Not implemented here to keep it clean, but user asked for connected stroke)
+            console.warn('Could not merge paths, exporting empty or partial SVG');
+        }
+
+        // Append Tires
+        tires.forEach(tire => {
+            newSvg.appendChild(tire);
+        });
+
+        const serializer = new XMLSerializer();
+        let source = serializer.serializeToString(newSvg);
+
+        if (!source.match(/^<\?xml/)) {
+            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+        }
+
+        const blob = new Blob([source], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const downloadLink = document.createElement("a");
+        downloadLink.href = url;
+        downloadLink.download = `chassis-profile-${Date.now()}.svg`;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
+
     render() {
         if (!this.container) return;
         this.container.innerHTML = '';
@@ -454,8 +617,9 @@ export class ProfileManager {
                         </div>
                     </div>
                     <div class="profile-options">
-                        <div class="profile-option" data-action="rename">Rename</div>
                         <div class="profile-option" data-action="duplicate">Duplicate</div>
+                        <div class="profile-option" data-action="overwrite">Overwrite</div>
+                        <div class="profile-option" data-action="reset">Reset</div>
                         <div class="profile-option danger" data-action="delete">Delete</div>
                     </div>
                 `;
@@ -463,7 +627,16 @@ export class ProfileManager {
                 // Attach event listeners for options
                 const deleteBtn = bar.querySelector('[data-action="delete"]');
                 const duplicateBtn = bar.querySelector('[data-action="duplicate"]');
-                const renameBtn = bar.querySelector('[data-action="rename"]');
+                const overwriteBtn = bar.querySelector('[data-action="overwrite"]');
+                const resetBtn = bar.querySelector('[data-action="reset"]');
+                const nameEl = bar.querySelector('.profile-name');
+
+                if (nameEl) {
+                    nameEl.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.renameProfile(index);
+                    });
+                }
 
                 if (duplicateBtn) {
                     duplicateBtn.addEventListener('click', (e) => {
@@ -471,10 +644,19 @@ export class ProfileManager {
                         this.duplicateProfile(index);
                     });
                 }
-                if (renameBtn) {
-                    renameBtn.addEventListener('click', (e) => {
+                if (overwriteBtn) {
+                    overwriteBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        this.renameProfile(index);
+                        const input = document.getElementById('overwriteProfileInput');
+                        if (input) input.click();
+                    });
+                }
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (confirm('Reset canvas to default values? This will overwrite current changes.')) {
+                            this.resetCanvas();
+                        }
                     });
                 }
                 if (deleteBtn) deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); this.deleteProfile(index); });
