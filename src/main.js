@@ -6,6 +6,7 @@ import { LayerController } from './ui/layerController.js';
 import { CanvasZoomController } from './ui/canvasZoomController.js';
 import { loadInlineSvgs } from './ui/inlineSvgLoader.js';
 import { SmartAdjuster } from './ui/smartAdjuster.js';
+import { SmartToggle } from './ui/smartToggle.js';
 import { ProfileManager } from './utils/profileManager.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -350,7 +351,113 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     profileManager.onProfileCountChange(syncProfileLimitUI);
 
+    // Assist Line Toggle
+    const assistLineToggle = new SmartToggle(document.getElementById('assistLineToggle'), stateManager, 'showAssistLines');
+
+    // Handle Snapshot
+    const takeSnapshotBtn = document.getElementById('takeSnapshotBtn');
+    if (takeSnapshotBtn) {
+        takeSnapshotBtn.addEventListener('click', async () => {
+            // Use html2canvas for a simpler, more robust snapshot
+            const canvasArea = document.getElementById('canvasArea');
+            if (!canvasArea) return;
+
+            // 1. Temporarily hide UI elements inside canvasArea
+            const uiIds = [
+                'profileBarContainer',
+                'profileControls',
+                'alignTopBar',
+                'blindZoneDisplay',
+                'alignCancelBtn',
+                'resizeHandle' // Hide the resize handle on the image
+            ];
+
+            const hiddenElements = [];
+            uiIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.style.display !== 'none' && !el.classList.contains('hidden')) {
+                    hiddenElements.push({ el, originalDisplay: el.style.display });
+                    el.style.display = 'none';
+                }
+            });
+
+            // Also hide the resize handle if it's visible (it's inside imageFrame)
+            const resizeHandle = document.getElementById('resizeHandle');
+            if (resizeHandle) {
+                hiddenElements.push({ el: resizeHandle, originalDisplay: resizeHandle.style.display });
+                resizeHandle.style.display = 'none';
+            }
+
+            console.log('Snapshot: Capturing with html2canvas...');
+
+            // Trigger Flash Animation
+            const flashEl = document.getElementById('snapshotFlash');
+            if (flashEl) {
+                // Remove transition temporarily to set initial opacity instantly
+                flashEl.style.transition = 'none';
+                flashEl.style.opacity = '0.8';
+
+                // Force reflow
+                flashEl.offsetHeight;
+
+                // Restore transition for fade out
+                flashEl.style.transition = 'opacity 0.5s ease-out';
+            }
+
+            // 2. Capture
+            // Use transparent background
+            html2canvas(canvasArea, {
+                backgroundColor: null,
+                scale: 2, // Higher quality
+                logging: false,
+                useCORS: true, // For images
+                ignoreElements: (element) => {
+                    // Double check we don't capture unwanted UI if they weren't caught by ID
+                    if (element.classList.contains('smart-adjuster') ||
+                        element.classList.contains('controls-infill') ||
+                        element.id === 'snapshotFlash') { // Ignore the flash element itself
+                        return true;
+                    }
+                    return false;
+                }
+            }).then(canvas => {
+                // 3. Restore UI
+                hiddenElements.forEach(item => {
+                    item.el.style.display = item.originalDisplay;
+                });
+
+                // Fade out flash
+                if (flashEl) {
+                    flashEl.style.opacity = '0';
+                }
+
+                // 4. Download
+                try {
+                    const pngUrl = canvas.toDataURL('image/png');
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = pngUrl;
+                    downloadLink.download = `car-profile-${Date.now()}.png`;
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+                    console.log('Snapshot: Download triggered.');
+                } catch (e) {
+                    console.error('Snapshot: Error saving canvas', e);
+                    alert('Error saving snapshot.');
+                }
+            }).catch(err => {
+                console.error('Snapshot: html2canvas failed', err);
+                alert('Error generating snapshot.');
+                // Restore UI in case of error
+                hiddenElements.forEach(item => {
+                    item.el.style.display = item.originalDisplay;
+                });
+            });
+        });
+    }
+
+    // Initial render
     // Initial render
     stateManager.updateFromInputs();
+    render();
 });
-

@@ -34,6 +34,7 @@ export class ImageOverlayManager {
         this.alignCancelButton = alignCancelButton;
         this.alignTopBar = alignTopBar;
         this.alignInput = alignInput;
+        this.alignWheelDiameterInput = document.getElementById('alignWheelDiameterInput');
         this.alignConfirmButton = alignConfirmBtn;
         this.stateManager = stateManager;
         this.layerController = layerController;
@@ -182,6 +183,20 @@ export class ImageOverlayManager {
             });
         }
 
+        if (this.alignWheelDiameterInput) {
+            this.alignWheelDiameterInput.addEventListener('input', () => this.#handleAlignInputChange());
+            this.alignWheelDiameterInput.addEventListener('blur', () => {
+                let value = parseInt(this.alignWheelDiameterInput.value, 10);
+                if (Number.isFinite(value)) {
+                    value = Math.round(value / 10) * 10;
+                    // Clamp (reasonable bounds for tire diameter, e.g., 300mm to 1500mm)
+                    value = Math.max(300, Math.min(1500, value));
+                    this.alignWheelDiameterInput.value = value;
+                    this.#handleAlignInputChange();
+                }
+            });
+        }
+
         if (this.alignConfirmButton) {
             this.alignConfirmButton.addEventListener('click', () => this.confirmAlignment());
         }
@@ -229,6 +244,9 @@ export class ImageOverlayManager {
         if (this.alignInput) {
             this.alignInput.value = '';
         }
+        if (this.alignWheelDiameterInput) {
+            this.alignWheelDiameterInput.value = this.stateManager.state.tireDiameter || '';
+        }
         if (this.alignConfirmButton) {
             this.alignConfirmButton.disabled = true;
         }
@@ -253,6 +271,9 @@ export class ImageOverlayManager {
         this.#stopAlignDotDrag();
         if (this.alignInput) {
             this.alignInput.value = '';
+        }
+        if (this.alignWheelDiameterInput) {
+            this.alignWheelDiameterInput.value = '';
         }
         if (this.alignConfirmButton) {
             this.alignConfirmButton.disabled = true;
@@ -441,27 +462,39 @@ export class ImageOverlayManager {
     }
 
     #handleAlignInputChange() {
-        if (!this.alignConfirmButton || !this.alignInput) return;
-        let value = parseInt(this.alignInput.value, 10);
+        if (!this.alignConfirmButton || !this.alignInput || !this.alignWheelDiameterInput) return;
+        let wbValue = parseInt(this.alignInput.value, 10);
+        let wdValue = parseInt(this.alignWheelDiameterInput.value, 10);
 
         const isValid = this.isAlignModeActive &&
             this.alignDots.length === 2 &&
-            Number.isFinite(value) &&
-            value >= this.alignWheelBaseBounds.min &&
-            value <= this.alignWheelBaseBounds.max;
+            Number.isFinite(wbValue) &&
+            wbValue >= this.alignWheelBaseBounds.min &&
+            wbValue <= this.alignWheelBaseBounds.max &&
+            Number.isFinite(wdValue) &&
+            wdValue >= 300 &&
+            wdValue <= 1500;
         this.alignConfirmButton.disabled = !isValid;
     }
 
     confirmAlignment() {
-        if (!this.isAlignModeActive || this.alignDots.length < 2 || !this.alignInput) return;
+        if (!this.isAlignModeActive || this.alignDots.length < 2 || !this.alignInput || !this.alignWheelDiameterInput) return;
         const wheelBaseValue = parseInt(this.alignInput.value, 10);
+        const wheelDiameterValue = parseInt(this.alignWheelDiameterInput.value, 10);
+
         if (!Number.isFinite(wheelBaseValue) ||
             wheelBaseValue < this.alignWheelBaseBounds.min ||
-            wheelBaseValue > this.alignWheelBaseBounds.max) {
+            wheelBaseValue > this.alignWheelBaseBounds.max ||
+            !Number.isFinite(wheelDiameterValue) ||
+            wheelDiameterValue < 300 ||
+            wheelDiameterValue > 1500) {
             return;
         }
 
-        this.stateManager.setState({ wheelBase: wheelBaseValue });
+        this.stateManager.setState({
+            wheelBase: wheelBaseValue,
+            tireDiameter: wheelDiameterValue
+        });
         this.#applyAlignmentTransform(wheelBaseValue);
 
         // Save the new frame state after alignment

@@ -86,3 +86,135 @@ export const ASSET_PIVOTS = {
     smallLeg: { x: 356.26, y: 27.31 }
 };
 
+
+export const DEFAULT_PROFILE = {
+    "tireDiameter": 700,
+    "wheelArchGap": 50,
+    "wheelBase": 2600,
+    "groundClearance": 170,
+    "floorThickness": 160,
+    "frontOverhang": 650,
+    "rearOverhang": 700,
+    "frontApproachAngle": 17,
+    "rearDepartureAngle": 25,
+    "frontFaceBreakX": 732,
+    "frontFaceBreakY": 315,
+    "bonnetEndX": -314,
+    "bonnetEndY": 603,
+    "windowEndX": -1221,
+    "windowEndY": 943,
+    "rooftopEndX": -614,
+    "rooftopEndY": 771,
+    "rearWindowEndX": -591,
+    "rearWindowEndY": 636,
+    "bumperEndX": -715,
+    "bumperEndY": 127,
+    "hPointHeight": 160,
+    "hPointX": 1410,
+    "hipPedalDistance": 770,
+    "bodyReclineAngle": 30,
+    "handHeight": 400,
+    "handDistanceX": 340,
+    "mannequinHeight": 180,
+    "showMannequin": true,
+    "bodyControlPoints": {
+        "bonnet": [
+            {
+                "id": 1,
+                "t": 0.26,
+                "offsetParallel": 0,
+                "offsetPerpendicular": -93.61,
+                "mode": "asymmetric",
+                "handleIn": {
+                    "parallel": -103,
+                    "perpendicular": 19.14
+                },
+                "handleOut": {
+                    "parallel": 304.5,
+                    "perpendicular": -2.29
+                }
+            }
+        ],
+        "front-face": [
+            {
+                "id": 2,
+                "t": 0.72,
+                "offsetParallel": 0,
+                "offsetPerpendicular": -36.8,
+                "mode": "hard",
+                "handleIn": {
+                    "parallel": 0,
+                    "perpendicular": 0
+                },
+                "handleOut": {
+                    "parallel": 0,
+                    "perpendicular": 0
+                }
+            }
+        ],
+        "rooftop": [
+            {
+                "id": 4,
+                "t": 0.81,
+                "offsetParallel": 0,
+                "offsetPerpendicular": -107.77,
+                "mode": "asymmetric",
+                "handleIn": {
+                    "parallel": -1117.26,
+                    "perpendicular": -27.55
+                },
+                "handleOut": {
+                    "parallel": 173.4,
+                    "perpendicular": 38.28
+                }
+            }
+        ],
+        "windscreen": [
+            {
+                "id": 5,
+                "t": 0.54,
+                "offsetParallel": 0,
+                "offsetPerpendicular": -17.86,
+                "mode": "symmetric",
+                "handleIn": {
+                    "parallel": -171.79,
+                    "perpendicular": 2.48
+                },
+                "handleOut": {
+                    "parallel": 171.79,
+                    "perpendicular": -2.48
+                }
+            }
+        ],
+        "rear-door": [
+            {
+                "id": 6,
+                "t": 0.55,
+                "offsetParallel": 0,
+                "offsetPerpendicular": 66,
+                "mode": "hard",
+                "handleIn": {
+                    "parallel": 0,
+                    "perpendicular": 0
+                },
+                "handleOut": {
+                    "parallel": 0,
+                    "perpendicular": 0
+                }
+            }
+        ]
+    },
+    "nextControlPointId": 7,
+    "imageOpacity": 50,
+    "imageRotation": 0,
+    "imageScale": 100,
+    "imageData": null,
+    "imageFlipped": false,
+    "imageFrame": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0
+    },
+    "showAssistLines": true
+};

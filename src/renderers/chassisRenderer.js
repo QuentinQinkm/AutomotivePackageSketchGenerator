@@ -145,12 +145,24 @@ export class ChassisRenderer {
         this.dimLengthVal = document.getElementById('dimLengthVal');
         this.dimHeightVal = document.getElementById('dimHeightVal');
         this.blindZoneDisplay = document.getElementById('blindZoneDisplay');
-        if (this.blindZoneDisplay) {
-            this.blindZoneDisplay.addEventListener('click', () => {
-                const currentState = this.stateManager.getState().showAssistLines;
-                this.stateManager.setState({ showAssistLines: !currentState });
-            });
-        }
+
+        // Initialize persistent groups
+        this.drawingGroup.innerHTML = '';
+        this.mainGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.assistGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.assistGroup.setAttribute('class', 'assist-lines-group');
+        this.drawingGroup.appendChild(this.assistGroup); // Assist lines behind car? Or in front? Usually behind or overlay. Let's put them first so they are behind if needed, or second if overlay.
+        // Actually, assist lines like ground line should be behind?
+        // Current draw order: body contour, floor line, tangent lines, bumper lines, dots.
+        // Ground line is drawn later.
+        // Let's keep order flexible by appending to specific groups.
+        // If I append assistGroup first, it's behind mainGroup.
+        // If I append mainGroup first, it's behind assistGroup.
+        // Let's append assistGroup first (behind) for ground/floor lines, but wait, visual line is usually on top.
+        // Maybe I need two assist groups? Or just one and manage z-index via order.
+        // Let's stick to one assist group for now and see.
+        this.drawingGroup.appendChild(this.mainGroup);
+        this.drawingGroup.appendChild(this.assistGroup); // On top for now so visual line is visible
     }
 
     destroy() {
@@ -165,14 +177,26 @@ export class ChassisRenderer {
 
     draw(context) {
         const state = this.stateManager.getState();
+        const strokeColor = `hsl(${state.strokeColor}, 100%, ${state.strokeBrightness}%)`;
         const showChassisControls = this.layerController.isActive('chassis');
-        this.drawingGroup.innerHTML = '';
+
+        // Clear subgroups instead of main group
+        this.mainGroup.innerHTML = '';
+        this.assistGroup.innerHTML = '';
+
+        // Update visibility class for transition
+        if (state.showAssistLines) {
+            this.assistGroup.classList.remove('assist-hidden');
+        } else {
+            this.assistGroup.classList.add('assist-hidden');
+        }
+
         const linesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         const dotsGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         this.linesGroup = linesGroup;
         this.dotsGroup = dotsGroup;
-        this.drawingGroup.appendChild(linesGroup);
-        this.drawingGroup.appendChild(dotsGroup);
+        this.mainGroup.appendChild(linesGroup);
+        this.mainGroup.appendChild(dotsGroup);
         this.hideLineMenu();
         this.segmentInfoMap.clear();
 
@@ -211,11 +235,12 @@ export class ChassisRenderer {
 
         const bodyContour = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         bodyContour.setAttribute('d', pathD);
-        bodyContour.setAttribute('stroke', COLOR_BLUE);
+        bodyContour.setAttribute('stroke', strokeColor);
         bodyContour.setAttribute('stroke-width', '4');
         bodyContour.setAttribute('fill', 'none');
         linesGroup.appendChild(bodyContour);
 
+        // Always render assist lines, visibility handled by CSS on group
         const floorLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         floorLine.setAttribute('x1', frontArchStartX);
         floorLine.setAttribute('y1', floorY);
@@ -224,7 +249,7 @@ export class ChassisRenderer {
         floorLine.setAttribute('stroke', '#f8fafc');
         floorLine.setAttribute('stroke-width', '3');
         floorLine.setAttribute('stroke-dasharray', '4, 4');
-        linesGroup.appendChild(floorLine);
+        this.assistGroup.appendChild(floorLine);
 
         const frontApproachAngleRad = state.frontApproachAngle * Math.PI / 180;
         const rearDepartureAngleRad = state.rearDepartureAngle * Math.PI / 180;
@@ -244,7 +269,7 @@ export class ChassisRenderer {
         frontTangentLine.setAttribute('stroke', 'rgba(148, 163, 184, 0.5)');
         frontTangentLine.setAttribute('stroke-width', '2');
         frontTangentLine.setAttribute('stroke-dasharray', '5, 5');
-        linesGroup.appendChild(frontTangentLine);
+        this.assistGroup.appendChild(frontTangentLine);
 
         const rearTheta = (Math.PI / 2) - rearDepartureAngleRad;
         const rearTangentX = rearWheelX + tireRadiusPx * Math.cos(rearTheta);
@@ -260,7 +285,7 @@ export class ChassisRenderer {
         rearTangentLine.setAttribute('stroke', 'rgba(148, 163, 184, 0.5)');
         rearTangentLine.setAttribute('stroke-width', '2');
         rearTangentLine.setAttribute('stroke-dasharray', '5, 5');
-        linesGroup.appendChild(rearTangentLine);
+        this.assistGroup.appendChild(rearTangentLine);
 
         const frontOverhangPx = state.frontOverhang * SCALE;
         const targetFrontX = frontWheelX - frontOverhangPx;
@@ -279,7 +304,7 @@ export class ChassisRenderer {
         frontBumperLine.setAttribute('y1', targetFrontY);
         frontBumperLine.setAttribute('x2', frontArchStartX);
         frontBumperLine.setAttribute('y2', chassisBottomY);
-        frontBumperLine.setAttribute('stroke', COLOR_BLUE);
+        frontBumperLine.setAttribute('stroke', strokeColor);
         frontBumperLine.setAttribute('stroke-width', '4');
         linesGroup.appendChild(frontBumperLine);
 
@@ -412,7 +437,7 @@ export class ChassisRenderer {
         rearBumperLine.setAttribute('y1', targetRearY);
         rearBumperLine.setAttribute('x2', rearArchEndX);
         rearBumperLine.setAttribute('y2', chassisBottomY);
-        rearBumperLine.setAttribute('stroke', COLOR_BLUE);
+        rearBumperLine.setAttribute('stroke', strokeColor);
         rearBumperLine.setAttribute('stroke-width', '4');
         linesGroup.appendChild(rearBumperLine);
 
@@ -449,7 +474,7 @@ export class ChassisRenderer {
 
         const bodyProfilePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         bodyProfilePath.setAttribute('d', bodyPath);
-        bodyProfilePath.setAttribute('stroke', COLOR_BLUE);
+        bodyProfilePath.setAttribute('stroke', strokeColor);
         bodyProfilePath.setAttribute('stroke-width', '4');
         bodyProfilePath.setAttribute('fill', 'none');
         linesGroup.appendChild(bodyProfilePath);
@@ -476,9 +501,17 @@ export class ChassisRenderer {
         groundLine.setAttribute('y2', GROUND_Y);
         groundLine.setAttribute('stroke', 'rgba(255,255,255,0.5)');
         groundLine.setAttribute('stroke-width', '4');
-        linesGroup.appendChild(groundLine);
+        this.assistGroup.appendChild(groundLine);
 
-        this.drawVisualLine(linesGroup, frontWheelX, rearWheelX, wheelY, state);
+        this.drawVisualLine(this.assistGroup, frontWheelX, rearWheelX, wheelY, state);
+
+        if (this.blindZoneDisplay) {
+            if (state.showAssistLines) {
+                this.blindZoneDisplay.classList.remove('hidden');
+            } else {
+                this.blindZoneDisplay.classList.add('hidden');
+            }
+        }
 
         // Update dimension labels even during animation so the UI doesn't briefly show placeholders
         this.updateDimensions();

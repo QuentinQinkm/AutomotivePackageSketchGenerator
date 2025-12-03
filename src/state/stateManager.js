@@ -1,3 +1,5 @@
+import { DEFAULT_PROFILE } from '../constants.js';
+
 export class StateManager {
     constructor({ inputs, displays }) {
         this.inputs = inputs;
@@ -13,46 +15,15 @@ export class StateManager {
     }
 
     #buildInitialState() {
-        return {
-            tireDiameter: parseInt(this.inputs.tireDiameter.value, 10),
-            wheelArchGap: parseInt(this.inputs.wheelArchGap.value, 10),
-            wheelBase: parseInt(this.inputs.wheelBase.value, 10),
-            groundClearance: parseInt(this.inputs.groundClearance.value, 10),
-            floorThickness: parseInt(this.inputs.floorThickness.value, 10),
-            frontOverhang: parseInt(this.inputs.frontOverhang.value, 10),
-            rearOverhang: parseInt(this.inputs.rearOverhang.value, 10),
-            frontApproachAngle: parseInt(this.inputs.frontApproachAngle.value, 10),
-            rearDepartureAngle: parseInt(this.inputs.rearDepartureAngle.value, 10),
-            frontFaceBreakX: 775,
-            frontFaceBreakY: 525,
-            bonnetEndX: -365,
-            bonnetEndY: 660,
-            windowEndX: -1445,
-            windowEndY: 1125,
-            rooftopEndX: -195,
-            rooftopEndY: 1130,
-            rearWindowEndX: -500,
-            rearWindowEndY: 775,
-            bumperEndX: -890,
-            bumperEndY: 535,
-            hPointHeight: parseInt(this.inputs.hPointHeight.value, 10),
-            hPointX: parseInt(this.inputs.hPointX.value, 10),
-            hipPedalDistance: parseInt(this.inputs.hipPedalDistance.value, 10),
-            bodyReclineAngle: parseInt(this.inputs.bodyReclineAngle.value, 10),
-            handHeight: parseInt(this.inputs.handHeight.value, 10),
-            handDistanceX: parseInt(this.inputs.handDistanceX.value, 10),
-            mannequinHeight: parseInt(this.inputs.mannequinHeight.value, 10),
-            showMannequin: this.inputs.showMannequin.checked,
-            bodyControlPoints: {},
-            nextControlPointId: 1,
-            imageOpacity: 50,
-            imageRotation: 0,
-            imageScale: 100,
-            imageData: null,
-            imageFlipped: false,
-            imageFrame: { x: 0, y: 0, width: 0, height: 0 },
-            showAssistLines: true
-        };
+        // Use DEFAULT_PROFILE as base, but ensure we have all required fields
+        // We clone it to avoid mutating the constant
+        const defaultState = JSON.parse(JSON.stringify(DEFAULT_PROFILE));
+
+        // Ensure stroke settings are present (they might not be in Default.json)
+        if (defaultState.strokeColor === undefined) defaultState.strokeColor = 224;
+        if (defaultState.strokeBrightness === undefined) defaultState.strokeBrightness = 33;
+
+        return defaultState;
     }
 
     subscribe(listener) {

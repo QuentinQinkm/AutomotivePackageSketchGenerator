@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="smart-adjuster.css">
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 </head>
 
 <body>
@@ -204,9 +205,15 @@
                         <div class="align-input-container">
                             <input type="number" id="alignWheelBaseInput" class="align-input" placeholder="mm"
                                 step="10">
-                            <span class="align-helper-text">Rounded to nearest 10mm</span>
+                        </div>
+                        <label for="alignWheelDiameterInput" class="align-label" style="margin-left: 20px;">Wheel
+                            Dia</label>
+                        <div class="align-input-container">
+                            <input type="number" id="alignWheelDiameterInput" class="align-input" placeholder="mm"
+                                step="10">
                         </div>
                         <button type="button" id="alignConfirmBtn" class="align-confirm-btn" disabled>Confirm</button>
+                        <span class="align-helper-text">Rounded to nearest 10mm</span>
                     </div>
                     <div id="blindZoneDisplay" class="blind-zone-display hidden">
                         Front Blind Zone: Distance -- • Height --
@@ -329,14 +336,26 @@
                     </div>
                 </div>
 
+                <div class="snapshot-flash" id="snapshotFlash"></div>
                 <div class="profile-controls-overlay hidden" id="profileControlsOverlay">
                     <div class="control-row">
+                        <div class="smart-adjuster" data-param="strokeColor" data-label="Stroke Color" data-min="0"
+                            data-max="360" data-step="3" data-hide-value="true"></div>
+                        <div class="smart-adjuster" data-param="strokeBrightness" data-label="Stroke Brightness"
+                            data-min="0" data-max="100" data-step="1"></div>
+                        <div class="smart-toggle" id="assistLineToggle" data-label="Assist Line">
+                            <div class="toggle-switch"></div>
+                        </div>
+
                         <div class="smart-button" id="profileResetBtn">
                             <div class="button-label">Reset Canvas</div>
                         </div>
 
                         <div class="smart-button" id="profileOverwriteBtn">
                             <div class="button-label">Overwrite Profile</div>
+                        </div>
+                        <div class="smart-button" id="takeSnapshotBtn">
+                            <div class="button-label">Take Snapshot</div>
                         </div>
                         <div class="smart-button" id="profileDownloadBtn">
                             <div class="button-label">Download Profile</div>
