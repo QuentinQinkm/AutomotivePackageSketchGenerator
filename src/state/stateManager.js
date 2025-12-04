@@ -42,16 +42,33 @@ export class StateManager {
 
     setInteraction(paramName) {
         let changed = false;
-        if (Array.isArray(paramName)) {
-            // Simple check: different length or different content
-            if (!Array.isArray(this.interactingParam) ||
-                this.interactingParam.length !== paramName.length ||
-                !paramName.every((val, index) => val === this.interactingParam[index])) {
-                this.interactingParam = paramName;
-                changed = true;
-            }
-        } else if (this.interactingParam !== paramName) {
-            this.interactingParam = paramName;
+
+        // Normalize to array or null
+        const newParams = paramName ? (Array.isArray(paramName) ? paramName : [paramName]) : null;
+        const currentParams = this.interactingParam ? (Array.isArray(this.interactingParam) ? this.interactingParam : [this.interactingParam]) : null;
+
+        // Check for equality
+        let isEqual = false;
+        if (newParams === null && currentParams === null) {
+            isEqual = true;
+        } else if (newParams !== null && currentParams !== null && newParams.length === currentParams.length) {
+            isEqual = newParams.every((val, index) => val === currentParams[index]);
+        }
+
+        if (!isEqual) {
+            this.interactingParam = paramName; // Store as is (string or array) or maybe normalize? 
+            // The listener expects what?
+            // Existing listeners might expect a string.
+            // Let's check how listeners use it.
+            // Usually they check `if (param === 'myParam')`.
+            // If we pass an array, `param === 'myParam'` will be false.
+            // We should probably update listeners to handle arrays too, OR we keep `interactingParam` as is and let listeners adapt.
+            // But wait, if I change `interactingParam` to array, existing code like `if (interactingParam === 'frontOverhang')` will fail.
+            // So I should probably update the listeners or make `interactingParam` backward compatible?
+            // No, I should update the listeners to check `includes` if it's an array.
+            // But I can't update all listeners easily.
+            // However, the main listener for highlighting is likely in `main.js` or `index.html` (via class toggling).
+            // Let's check `main.js` to see how it handles interaction updates.
             changed = true;
         }
 

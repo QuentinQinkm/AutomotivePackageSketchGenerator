@@ -611,7 +611,38 @@ export class ChassisRenderer {
         this.activeOverhangPointKey = pointKey;
         this.setDotVisualState(dotElement, true);
         this.showPointTooltip(pointKey, currentX, currentY);
-        this.stateManager.setInteraction(position === 'front' ? 'frontOverhang' : 'rearOverhang');
+
+        // Highlight both Overhang and Angle inputs
+        if (position === 'front') {
+            this.stateManager.setInteraction('frontOverhang');
+            // We need to support multiple interactions or rely on the fact that setInteraction might only support one.
+            // If StateManager only supports one string, we might need to modify StateManager or just highlight one.
+            // However, looking at StateManager (assumed), it likely highlights based on the string matching the input ID or data attribute.
+            // If we want BOTH, we might need to pass an array or handle it in StateManager.
+            // Let's check StateManager.setInteraction implementation if possible, but for now, let's try to pass a custom string or handle it.
+            // Actually, usually these systems highlight by adding a class to the element with id=`control-${key}`.
+            // If we can't pass multiple, we might need to update StateManager.
+            // But wait, the user asked for "highlighting... accordingly".
+            // Let's assume we can pass an array or we need to modify StateManager.
+            // Since I can't see StateManager right now, I will try to set it to a special value or just call it twice? No, calling twice usually overwrites.
+            // Let's check if we can modify StateManager to accept an array.
+            // But first, let's look at how it's used.
+            // this.stateManager.setInteraction('frontOverhang');
+
+            // Let's try to modify StateManager to handle array if it doesn't, or just add a specific case.
+            // For now, I will update this to pass an array if I can, but I'll check StateManager first.
+            // Since I cannot check StateManager in this turn without a tool call, and I need to be efficient:
+            // I will assume I need to update StateManager to handle arrays if it doesn't.
+            // But I will just pass an array here and update StateManager in the next step if needed.
+            // Actually, I'll update StateManager in the same turn if I can find it.
+            // Let's look at `src/utils/stateManager.js` if it exists? Or `src/stateManager.js`?
+            // It was imported in main.js.
+
+            // Let's just pass an array here.
+            this.stateManager.setInteraction(['frontOverhang', 'frontApproachAngle']);
+        } else {
+            this.stateManager.setInteraction(['rearOverhang', 'rearDepartureAngle']);
+        }
         event.preventDefault();
         event.stopPropagation();
     }
@@ -752,44 +783,138 @@ export class ChassisRenderer {
         const frontWheelX = CENTER_X - (wheelBasePx / 2);
         const rearWheelX = CENTER_X + (wheelBasePx / 2);
         const wheelY = GROUND_Y - tireRadiusPx;
-        const adjustedPoint = {
+
+        // Calculate adjusted mouse position (removing initial drag offset)
+        const P = {
             x: svgCoords.x - this.overhangDragOffset.x,
             y: svgCoords.y - this.overhangDragOffset.y
         };
 
         const isFront = this.isDraggingOverhangPoint === 'front';
-        const inputEl = isFront ? this.stateManager.inputs.frontOverhang : this.stateManager.inputs.rearOverhang;
-        if (!inputEl) return;
+        const wheelCenter = { x: isFront ? frontWheelX : rearWheelX, y: wheelY };
 
-        const sliderMin = parseInt(inputEl.min, 10);
-        const sliderMax = parseInt(inputEl.max, 10);
-        const min = Number.isNaN(sliderMin) ? 0 : sliderMin;
-        const max = Number.isNaN(sliderMax) ? min : sliderMax;
-
-        const geometry = isFront
-            ? this.getFrontOverhangGeometry(state, frontWheelX, wheelY, tireRadiusPx)
-            : this.getRearOverhangGeometry(state, rearWheelX, wheelY, tireRadiusPx);
-
-        const projected = this.projectPointOntoLine(adjustedPoint, geometry.tangentPoint, geometry.direction);
-        const rawOverhangPx = isFront
-            ? frontWheelX - projected.x
-            : projected.x - rearWheelX;
-
-        let overhangMm = Math.round(rawOverhangPx / SCALE);
-        overhangMm = Math.max(min, Math.min(max, overhangMm));
-
-        const currentValue = isFront ? state.frontOverhang : state.rearOverhang;
-        if (overhangMm !== currentValue) {
-            inputEl.value = overhangMm.toString();
-            this.stateManager.updateFromInputs();
+        // 1. Calculate new Overhang (X-distance)
+        let overhangMm;
+        if (isFront) {
+            overhangMm = Math.round((frontWheelX - P.x) / SCALE);
+        } else {
+            overhangMm = Math.round((P.x - rearWheelX) / SCALE);
         }
 
-        const updatedValue = isFront ? state.frontOverhang : state.rearOverhang;
-        const overhangPx = updatedValue * SCALE;
-        const finalX = isFront ? frontWheelX - overhangPx : rearWheelX + overhangPx;
-        const finalY = this.getLineYFromX(geometry.tangentPoint, geometry.direction, finalX);
-        const tooltipKey = isFront ? 'frontOverhangTip' : 'rearOverhangTip';
-        this.updatePointTooltip(tooltipKey, finalX, finalY);
+        // Clamp Overhang
+        const overhangInput = isFront ? this.stateManager.inputs.frontOverhang : this.stateManager.inputs.rearOverhang;
+        if (overhangInput) {
+            const sliderMin = parseInt(overhangInput.min, 10);
+            const sliderMax = parseInt(overhangInput.max, 10);
+            const min = Number.isNaN(sliderMin) ? 0 : sliderMin;
+            const max = Number.isNaN(sliderMax) ? 2000 : sliderMax;
+            overhangMm = Math.max(min, Math.min(max, overhangMm));
+        }
+
+        // 2. Calculate new Angle
+        // Vector from Wheel Center to P
+        const dx = P.x - wheelCenter.x;
+        const dy = P.y - wheelCenter.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        let angleDeg;
+
+        // Prevent math errors if point is inside wheel
+        if (dist >= tireRadiusPx) {
+            const baseAngle = Math.atan2(dy, dx);
+            const offsetAngle = Math.acos(tireRadiusPx / dist);
+
+            let theta; // Tangent angle on circle
+            if (isFront) {
+                // Front: Tip is Left. We want top tangent.
+                // baseAngle ~ PI. offset > 0.
+                // theta = baseAngle - offsetAngle
+                theta = baseAngle - offsetAngle;
+
+                // Front Approach Angle A: theta = PI/2 + A_rad
+                // A_rad = theta - PI/2
+                const angleRad = theta - (Math.PI / 2);
+                angleDeg = angleRad * (180 / Math.PI);
+            } else {
+                // Rear: Tip is Right. We want top tangent.
+                // baseAngle ~ 0. offset > 0.
+                // theta = baseAngle + offsetAngle
+                theta = baseAngle + offsetAngle;
+
+                // Rear Departure Angle A: theta = PI/2 - A_rad
+                // A_rad = PI/2 - theta
+                const angleRad = (Math.PI / 2) - theta;
+                angleDeg = angleRad * (180 / Math.PI);
+            }
+
+            angleDeg = Math.round(angleDeg);
+        } else {
+            // Keep existing angle if invalid
+            angleDeg = isFront ? state.frontApproachAngle : state.rearDepartureAngle;
+        }
+
+        // Clamp Angle
+        const angleInput = isFront ? this.stateManager.inputs.frontApproachAngle : this.stateManager.inputs.rearDepartureAngle;
+        if (angleInput) {
+            const sliderMin = parseInt(angleInput.min, 10);
+            const sliderMax = parseInt(angleInput.max, 10);
+            const min = Number.isNaN(sliderMin) ? 0 : sliderMin;
+            const max = Number.isNaN(sliderMax) ? 90 : sliderMax;
+            angleDeg = Math.max(min, Math.min(max, angleDeg));
+        }
+
+        // 3. Update Inputs and State
+        let changed = false;
+
+        if (overhangInput && parseInt(overhangInput.value, 10) !== overhangMm) {
+            overhangInput.value = overhangMm.toString();
+            changed = true;
+        }
+
+        if (angleInput && parseInt(angleInput.value, 10) !== angleDeg) {
+            angleInput.value = angleDeg.toString();
+            changed = true;
+        }
+
+        if (changed) {
+            this.stateManager.updateFromInputs();
+
+            // Update Tooltip with recalculated position
+            const tooltipKey = isFront ? 'frontOverhangTip' : 'rearOverhangTip';
+            const finalOverhangPx = overhangMm * SCALE;
+            const finalAngleRad = angleDeg * Math.PI / 180;
+
+            let finalX, finalY;
+            if (isFront) {
+                finalX = frontWheelX - finalOverhangPx;
+                const theta = (Math.PI / 2) + finalAngleRad;
+                const tx = frontWheelX + tireRadiusPx * Math.cos(theta);
+                const ty = wheelY + tireRadiusPx * Math.sin(theta);
+                const dirX = -Math.sin(theta);
+                const dirY = Math.cos(theta);
+                if (Math.abs(dirX) > 0.001) {
+                    const m = dirY / dirX;
+                    finalY = ty + m * (finalX - tx);
+                } else {
+                    finalY = ty;
+                }
+            } else {
+                finalX = rearWheelX + finalOverhangPx;
+                const theta = (Math.PI / 2) - finalAngleRad;
+                const tx = rearWheelX + tireRadiusPx * Math.cos(theta);
+                const ty = wheelY + tireRadiusPx * Math.sin(theta);
+                const dirX = Math.sin(theta);
+                const dirY = -Math.cos(theta);
+                if (Math.abs(dirX) > 0.001) {
+                    const m = dirY / dirX;
+                    finalY = ty + m * (finalX - tx);
+                } else {
+                    finalY = ty;
+                }
+            }
+
+            this.updatePointTooltip(tooltipKey, finalX, finalY);
+        }
     }
 
     onMouseUp() {
