@@ -76,6 +76,12 @@ body {
     text-align: center;
 }
 
+.layer-button:hover,
+.layer-button-wrapper:hover .layer-button {
+    color: #000000;
+    /* Keep text black when hovering wrapper (which includes popup) */
+}
+
 .layer-button.active {
     color: #000000;
     border-color: #000000;
@@ -450,7 +456,8 @@ input[type=range]::-moz-range-thumb {
 }
 
 /* Human Figure Canvas Layer */
-.bodyandhead-parent {
+.bodyandhead-parent,
+.passenger-parent {
     width: 1920px;
     height: 1080px;
     position: absolute;
@@ -613,14 +620,16 @@ input[type=range]::-moz-range-thumb {
     display: none;
 }
 
-.driver-anchor-layer {
+.driver-anchor-layer,
+.passenger-anchor-layer {
     position: absolute;
     inset: 0;
     z-index: 4;
     pointer-events: none;
 }
 
-.driver-anchor {
+.driver-anchor,
+.passenger-anchor {
     position: absolute;
     border-radius: 50%;
     transform: translate(-50%, -50%) scale(1);
@@ -632,18 +641,23 @@ input[type=range]::-moz-range-thumb {
     pointer-events: auto;
 }
 
-.driver-anchor.is-visible {
+.driver-anchor.is-visible,
+.passenger-anchor.is-visible {
     display: block;
 }
 
 .driver-anchor.is-active,
-.driver-anchor:hover {
+.driver-anchor:hover,
+.passenger-anchor.is-active,
+.passenger-anchor:hover {
     transform: translate(-50%, -50%) scale(1.35);
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
 }
 
 .bodyandhead-parent.show-driver-anchors .top-head,
-.bodyandhead-parent.show-driver-anchors .heel {
+.bodyandhead-parent.show-driver-anchors .heel,
+.passenger-parent.show-passenger-anchors .top-head,
+.passenger-parent.show-passenger-anchors .heel {
     display: block;
 }
 
@@ -1076,6 +1090,7 @@ body.align-mode .controls-infill,
 body.align-mode .layer-list,
 body.align-mode .chassis-controls-overlay,
 body.align-mode .driver-controls-overlay,
+body.align-mode .passenger-controls-overlay,
 body.align-mode .image-controls-overlay,
 body.align-mode .blind-zone-display {
     opacity: 0;
@@ -1163,4 +1178,215 @@ body.align-mode #carCanvas {
 
 .assist-lines-group.assist-hidden {
     opacity: 0;
+}
+
+/* Passenger Adjuster Styles */
+.passenger-adjuster-wrapper {
+    display: flex;
+    align-items: flex-end;
+    /* Ensure it aligns with other buttons */
+}
+
+/* Override .layer-list alignment if needed, but wrapper handles it */
+.layer-list {
+    align-items: flex-end;
+}
+
+.passenger-adjuster {
+    /* Override smart-adjuster default dimensions for the button state */
+    width: auto;
+    min-width: unset;
+    min-height: unset;
+    padding: 0;
+    margin: 0;
+    background: transparent !important;
+    opacity: 1 !important;
+    box-shadow: none !important;
+    border-radius: 0;
+    flex-direction: column-reverse;
+    /* Expand upwards */
+    height: auto;
+}
+
+.passenger-adjuster .adjuster-label {
+    /* Match .layer-button styles */
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    font-size: 20px;
+    color: rgba(0, 0, 0, 0.4);
+    border-bottom: 1px solid transparent;
+    padding: 2px 10px;
+    margin: 0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: capitalize;
+    pointer-events: auto;
+    /* Enable click for layer switch */
+    white-space: nowrap;
+}
+
+.passenger-adjuster.active .adjuster-label {
+    color: #000000;
+    border-color: #000000;
+}
+
+/* Hover State - Expand */
+.passenger-adjuster:hover {
+    background: rgba(255, 255, 255, 0.9) !important;
+    box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: blur(4px);
+    border-radius: 20px;
+    padding: 10px;
+    min-width: 140px;
+    /* Restore standard width on hover */
+    z-index: 10;
+    /* Bring to front */
+    transform: translateY(0px);
+    /* Adjust if needed */
+    margin-bottom: 0px;
+}
+
+.passenger-adjuster:hover .adjuster-label {
+    font-size: 14px;
+    /* Shrink to standard label size? */
+    color: #000000;
+    border-bottom: none;
+    margin-bottom: 0px;
+    margin-top: 4px;
+    /* Since reversed */
+}
+
+.passenger-adjuster .adjuster-value {
+    display: none;
+}
+
+.passenger-adjuster:hover .adjuster-value {
+    display: block;
+    font-size: 16px;
+    margin-bottom: 4px;
+    /* Top since reversed */
+}
+
+/* Knob Container */
+.passenger-adjuster .adjuster-knob-container {
+    height: 0;
+    opacity: 0;
+    margin: 0;
+}
+
+.passenger-adjuster:hover .adjuster-knob-container {
+    height: 24px;
+    opacity: 1;
+    margin: 4px 0;
+}
+
+
+/* Dropdown for passenger button */
+.layer-button-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.passenger-options-popup {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+
+    /* Match blind-zone-display style */
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border-radius: 30px;
+    padding: 0 21px;
+    /* Horizontal padding, height handles vertical */
+    height: 44px;
+    box-shadow: none;
+    border: none;
+
+    display: flex;
+    flex-direction: row;
+    /* Keep text and numbers in same row */
+    align-items: center;
+    gap: 20px;
+
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease, visibility 0.2s ease 0.5s;
+    /* Add delay */
+    transition-delay: 0.3s;
+    /* Ensure delay works */
+    white-space: nowrap;
+}
+
+.passenger-options-popup::before {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 6px;
+    /* Bridge the gap without blocking button */
+    /* Bridge the gap */
+    background: transparent;
+}
+
+.layer-button-wrapper:hover .passenger-options-popup {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(-5px);
+    /* Raised 5px higher than 0 (which was prev hover state) - wait previously it was translateY(0) on hover and -10px initial. 
+    User said "hove the bar 5 px higher".
+    Initial was -10px. Hover was 0.
+    If I want it higher on hover, maybe -5px? 
+    Or does user mean initial position? "hove the bar 5 px higher" -> maybe lift it up more?
+    Let's assumes hover state should be 5px higher. So translateY(-5px).
+    */
+    transition-delay: 0s;
+    /* No delay on appear */
+}
+
+.passenger-options-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 300;
+    color: rgba(0, 0, 0, 0.7);
+}
+
+.passenger-row-options {
+    display: flex;
+    gap: 30px;
+    align-items: center;
+}
+
+.passenger-row-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    width: auto;
+    height: auto;
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 300;
+    cursor: pointer;
+    transition: color 0.2s ease, opacity 0.2s ease;
+
+    /* Default state: slightly dimmed compared to active */
+    color: #000000;
+    opacity: 0.4;
+}
+
+.passenger-row-btn:hover {
+    background: transparent;
+    opacity: 0.7;
+}
+
+.passenger-row-btn.active {
+    background: transparent;
+    border: none;
+    color: #000000;
+    opacity: 1;
+    font-weight: 500;
+    /* Optional: make selected slightly bolder? Or just fully opaque? User said "text in black" */
 }

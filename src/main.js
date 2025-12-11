@@ -1,6 +1,7 @@
 import { ImageOverlayManager } from './image/imageOverlayManager.js';
 import { ChassisRenderer } from './renderers/chassisRenderer.js';
 import { HumanFigureRenderer } from './renderers/humanFigureRenderer.js';
+import { PassengerRenderer } from './renderers/passengerRenderer.js';
 import { StateManager } from './state/stateManager.js';
 import { LayerController } from './ui/layerController.js';
 import { CanvasZoomController } from './ui/canvasZoomController.js';
@@ -84,6 +85,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         layerController
     });
 
+    const passengerRenderer = new PassengerRenderer({
+        canvasArea,
+        stateManager,
+        layerController,
+        svg
+    });
+
     const zoomController = new CanvasZoomController({
         canvasArea,
         svgElement: svg,
@@ -112,39 +120,54 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const render = (state, context) => {
         humanFigureRenderer.update(context);
+        passengerRenderer.update(context);
         chassisRenderer.draw(context);
     };
 
     // Initialize Smart Adjusters
+    // Initialize Smart Adjusters (re-run to catch new elements if any, or just run once is fine since we added HTML before DOMContentLoaded)
+    // Actually adjusters querySelectorAll runs once. Since we added HTML to index.html, it's already there. 
+    // Just need to make sure we don't init twice if we were dynamically adding. But we edited static HTML.
+
     const adjusters = document.querySelectorAll('.smart-adjuster');
     adjusters.forEach(el => {
-        new SmartAdjuster(el, stateManager);
+        // Simple check to avoid double init if we were to run this multiple times
+        if (!el.dataset.initialized) {
+            new SmartAdjuster(el, stateManager);
+            el.dataset.initialized = 'true';
+        }
     });
 
     // Handle Smart Toggle
-    const showMannequinToggle = document.getElementById('showMannequinToggle');
-    if (showMannequinToggle) {
-        const toggleValue = showMannequinToggle.querySelector('.toggle-value');
+    const handleToggle = (toggleId, stateKey) => {
+        const toggleEl = document.getElementById(toggleId);
+        if (toggleEl) {
+            const toggleValue = toggleEl.querySelector('.toggle-value');
 
-        showMannequinToggle.addEventListener('click', () => {
-            const currentState = stateManager.state.showMannequin;
-            stateManager.setState({ showMannequin: !currentState });
-        });
+            toggleEl.addEventListener('click', () => {
+                const currentState = stateManager.state[stateKey];
+                // If stateKey doesn't exist yet, default to true/false? 
+                // StateManager should handle undefined, or we should init state.
+                stateManager.setState({ [stateKey]: !currentState });
+            });
 
-        // Sync initial state
-        stateManager.subscribe((state) => {
-            const isOn = state.showMannequin;
-            if (isOn) {
-                showMannequinToggle.classList.add('on');
-                showMannequinToggle.classList.remove('off');
-                toggleValue.textContent = 'ON';
-            } else {
-                showMannequinToggle.classList.add('off');
-                showMannequinToggle.classList.remove('on');
-                toggleValue.textContent = 'OFF';
-            }
-        });
-    }
+            stateManager.subscribe((state) => {
+                const isOn = state[stateKey];
+                if (isOn) {
+                    toggleEl.classList.add('on');
+                    toggleEl.classList.remove('off');
+                    toggleValue.textContent = 'ON';
+                } else {
+                    toggleEl.classList.add('off');
+                    toggleEl.classList.remove('on');
+                    toggleValue.textContent = 'OFF';
+                }
+            });
+        }
+    };
+
+    handleToggle('showMannequinToggle', 'showMannequin');
+    handleToggle('showLastRowToggle', 'showLastRow'); // New passenger toggle
 
 
 
@@ -153,11 +176,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Handle Layer Switching for Overlays
     const chassisOverlay = document.getElementById('chassisControls');
     const driverOverlay = document.getElementById('driverControls');
+    const passengerOverlay = document.getElementById('passengerControls');
     const imageOverlay = document.getElementById('imageControls');
     const profileOverlay = document.getElementById('profileControlsOverlay');
     const controlsInfill = document.querySelector('.controls-infill');
 
-    const overlayElements = [chassisOverlay, driverOverlay, imageOverlay, profileOverlay].filter(Boolean);
+    const overlayElements = [chassisOverlay, driverOverlay, passengerOverlay, imageOverlay, profileOverlay].filter(Boolean);
 
     const updateControlsBackdropOffset = () => {
         if (!canvasArea) return;
@@ -196,6 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const updateOverlays = (activeLayer) => {
         if (chassisOverlay) chassisOverlay.classList.toggle('hidden', activeLayer !== 'chassis');
         if (driverOverlay) driverOverlay.classList.toggle('hidden', activeLayer !== 'driver');
+        if (passengerOverlay) passengerOverlay.classList.toggle('hidden', activeLayer !== 'passenger');
         if (imageOverlay) imageOverlay.classList.toggle('hidden', activeLayer !== 'image');
         if (profileOverlay) profileOverlay.classList.toggle('hidden', activeLayer !== 'profile');
         updateControlsBackdropOffset();
@@ -462,6 +487,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Initial render
+    // Handle Passenger Row Selection
+    const passengerRowBtns = document.querySelectorAll('.passenger-row-btn');
+    passengerRowBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent switching layer (if wrapper logic handled that)
+            // Actually wrapper doesn't have click listener, button inside does. 
+            // The passenger layer button is separate sibling. 
+            // But popup is inside wrapper.
+
+            // Update UI
+            passengerRowBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const rows = parseInt(btn.dataset.rows, 10);
+            stateManager.setState({ showLastRow: rows > 0 });
+        });
+    });
+
     // Initial render
     stateManager.updateFromInputs();
     render();

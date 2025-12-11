@@ -96,6 +96,14 @@ export class StateManager {
         this.state.mannequinHeight = parseInt(this.inputs.mannequinHeight.value, 10);
         this.state.showMannequin = this.inputs.showMannequin.checked;
 
+        // Passenger Inputs
+        if (this.inputs.passengerHPointHeight) this.state.passengerHPointHeight = parseInt(this.inputs.passengerHPointHeight.value, 10);
+        if (this.inputs.passengerHPointX) this.state.passengerHPointX = parseInt(this.inputs.passengerHPointX.value, 10);
+        if (this.inputs.passengerHipFootDist) this.state.passengerHipFootDist = parseInt(this.inputs.passengerHipFootDist.value, 10);
+        if (this.inputs.passengerBodyRecline) this.state.passengerBodyRecline = parseInt(this.inputs.passengerBodyRecline.value, 10);
+        if (this.inputs.passengerFootFloorDist) this.state.passengerFootFloorDist = parseInt(this.inputs.passengerFootFloorDist.value, 10);
+        if (this.inputs.passengerHeight) this.state.passengerHeight = parseInt(this.inputs.passengerHeight.value, 10);
+
         this.#syncValueDisplays();
         this.notify();
     }
@@ -158,6 +166,11 @@ export class StateManager {
         if (!silent) {
             this.notify(context);
         }
+    }
+
+    resetToDefault({ silent = false } = {}) {
+        const defaultState = this.#buildInitialState();
+        this.replaceState(defaultState, { silent });
     }
 
 

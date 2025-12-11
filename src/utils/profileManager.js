@@ -31,6 +31,12 @@ export class ProfileManager {
         }
 
         const shouldStripImageState = !data;
+        // Ensure that for a completely new profile (data is null), we use the Factory Default,
+        // but 'this.defaultState' is our best reference.
+        // The issue 'New Profile is not the same as default' might be because 'this.defaultState'
+        // was captured AFTER some modifications? 
+        // No, construction is early.
+        // However, let's just make sure we use a clean reference.
         const sourceState = data || this.defaultState;
         const snapshot = this.roundValues(sourceState);
 

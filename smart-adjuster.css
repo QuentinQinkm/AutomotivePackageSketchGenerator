@@ -111,7 +111,8 @@
 
 /* Layout Container */
 .chassis-controls-overlay,
-.driver-controls-overlay {
+.driver-controls-overlay,
+.passenger-controls-overlay {
     position: absolute;
     bottom: 110px;
     left: 50%;
@@ -128,7 +129,8 @@
 }
 
 .chassis-controls-overlay.hidden,
-.driver-controls-overlay.hidden {
+.driver-controls-overlay.hidden,
+.passenger-controls-overlay.hidden {
     opacity: 0;
     visibility: hidden;
     pointer-events: none !important;
@@ -136,7 +138,9 @@
 
 .chassis-controls-overlay .smart-adjuster,
 .driver-controls-overlay .smart-adjuster,
-.driver-controls-overlay .smart-toggle {
+.driver-controls-overlay .smart-toggle,
+.passenger-controls-overlay .smart-adjuster,
+.passenger-controls-overlay .smart-toggle {
     pointer-events: auto;
     /* Re-enable clicks on adjusters */
 }
@@ -153,14 +157,18 @@
 /* Interaction Dimming */
 .chassis-controls-overlay.has-interaction .smart-adjuster,
 .driver-controls-overlay.has-interaction .smart-adjuster,
-.driver-controls-overlay.has-interaction .smart-toggle {
+.driver-controls-overlay.has-interaction .smart-toggle,
+.passenger-controls-overlay.has-interaction .smart-adjuster,
+.passenger-controls-overlay.has-interaction .smart-toggle {
     opacity: 0.2;
     transition: opacity 0.2s ease;
 }
 
 .chassis-controls-overlay.has-interaction .smart-adjuster.active,
 .driver-controls-overlay.has-interaction .smart-adjuster.active,
-.driver-controls-overlay.has-interaction .smart-toggle.active {
+.driver-controls-overlay.has-interaction .smart-toggle.active,
+.passenger-controls-overlay.has-interaction .smart-adjuster.active,
+.passenger-controls-overlay.has-interaction .smart-toggle.active {
     opacity: 1;
 }
 

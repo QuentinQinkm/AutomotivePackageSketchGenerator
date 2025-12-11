@@ -117,6 +117,13 @@ export const DEFAULT_PROFILE = {
     "handDistanceX": 340,
     "mannequinHeight": 180,
     "showMannequin": true,
+    "showLastRow": true,
+    "passengerHPointHeight": 280,
+    "passengerHPointX": 500, /* Distance to rear axle */
+    "passengerHipFootDist": 600,
+    "passengerBodyRecline": 28,
+    "passengerFootFloorDist": 0,
+    "passengerHeight": 180,
     "bodyControlPoints": {
         "bonnet": [
             {

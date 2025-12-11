@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Car BG Removal Experiment</title>
+    <style>
+      :root {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #1c1c1c;
+        background: #f6f6f6;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+      }
+
+      .card {
+        width: min(900px, 100%);
+        background: #fff;
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+      }
+
+      .actions {
+        margin: 16px 0 24px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+
+      input[type="file"] {
+        border: 1px dashed #c5c5c5;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: #fafafa;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 10px 22px;
+        font-weight: 600;
+        background: #2563eb;
+        color: #fff;
+        cursor: pointer;
+        transition: background 120ms ease;
+      }
+
+      button[disabled] {
+        background: #d1d5db;
+        cursor: not-allowed;
+      }
+
+      .preview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 18px;
+      }
+
+      .panel {
+        background: #f9fafb;
+        border-radius: 16px;
+        padding: 16px;
+      }
+
+      img,
+      canvas {
+        width: 100%;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        background:
+          linear-gradient(45deg, #eee 25%, transparent 25%),
+          linear-gradient(-45deg, #eee 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #eee 75%),
+          linear-gradient(-45deg, transparent 75%, #eee 75%);
+        background-size: 20px 20px;
+        background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+      }
+
+      #status {
+        font-size: 0.9rem;
+        color: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Car Background Removal (Local)</h1>
+      <p>
+        Quick sandbox that uses <code>opencv.js</code> (blur + Canny + contour fill) to isolate a car silhouette locally.
+        Upload a photo, hit “Remove Background”, and see the transparent PNG on the right.
+      </p>
+
+      <div class="actions">
+        <input type="file" id="imageInput" accept="image/*" />
+        <button id="processBtn" disabled>Remove Background</button>
+        <span id="status">Waiting for image…</span>
+      </div>
+
+      <div class="preview-grid">
+        <section class="panel">
+          <h3>Original</h3>
+          <img id="previewOriginal" alt="Original upload preview" hidden />
+        </section>
+        <section class="panel">
+          <h3>Result</h3>
+          <canvas id="resultCanvas"></canvas>
+        </section>
+      </div>
+
+      <p style="margin-top: 24px; font-size: 0.9rem; color: #475569;">
+        Tip: Tweaking blur size, Canny thresholds, or morphological operations can tighten or loosen the mask without any ML dependencies.
+      </p>
+    </main>
+
+    <script async src="./lib/opencv.js"></script>
+
+    <script type="module">
+      const inputEl = document.getElementById("imageInput");
+      const buttonEl = document.getElementById("processBtn");
+      const statusEl = document.getElementById("status");
+      const previewImg = document.getElementById("previewOriginal");
+      const canvas = document.getElementById("resultCanvas");
+      const ctx = canvas.getContext("2d");
+
+      let sourceFile = null;
+      let cvReadyPromise = null;
+
+      const waitForCv = () => {
+        if (!cvReadyPromise) {
+          cvReadyPromise = new Promise((resolve, reject) => {
+            const start = performance.now();
+            const check = () => {
+              if (window.cv && typeof window.cv.Mat === "function") {
+                resolve(window.cv);
+                return;
+              }
+              if (performance.now() - start > 15000) {
+                reject(new Error("OpenCV.js failed to load. Check your network."));
+                return;
+              }
+              requestAnimationFrame(check);
+            };
+            check();
+          });
+        }
+        return cvReadyPromise;
+      };
+
+      const ensureImageReady = () =>
+        new Promise((resolve, reject) => {
+          if (previewImg.complete && previewImg.naturalWidth > 0) {
+            resolve(previewImg);
+            return;
+          }
+          previewImg.onload = () => resolve(previewImg);
+          previewImg.onerror = () => reject(new Error("Failed to load preview image."));
+        });
+
+      inputEl.addEventListener("change", (event) => {
+        sourceFile = event.target.files?.[0] ?? null;
+
+        if (!sourceFile) {
+          buttonEl.disabled = true;
+          previewImg.hidden = true;
+          statusEl.textContent = "Waiting for image…";
+          return;
+        }
+
+        previewImg.src = URL.createObjectURL(sourceFile);
+        previewImg.hidden = false;
+        buttonEl.disabled = false;
+        statusEl.textContent = "Image ready. Click Remove Background.";
+      });
+
+      buttonEl.addEventListener("click", async () => {
+        if (!sourceFile) {
+          return;
+        }
+
+        buttonEl.disabled = true;
+        statusEl.textContent = "Preparing OpenCV pipeline…";
+
+        try {
+          const cv = await waitForCv();
+          await ensureImageReady();
+
+          canvas.width = previewImg.naturalWidth;
+          canvas.height = previewImg.naturalHeight;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(previewImg, 0, 0, canvas.width, canvas.height);
+
+          const originalData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const src = cv.matFromImageData(originalData);
+          const gray = new cv.Mat();
+          cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+          const blurred = new cv.Mat();
+          cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+
+          const edges = new cv.Mat();
+          cv.Canny(blurred, edges, 40, 120);
+
+          const kernel = cv.Mat.ones(5, 5, cv.CV_8U);
+          cv.dilate(edges, edges, kernel);
+          cv.erode(edges, edges, kernel);
+
+          const contours = new cv.MatVector();
+          const hierarchy = new cv.Mat();
+          cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+          const mask = new cv.Mat.zeros(src.rows, src.cols, cv.CV_8UC1);
+          let largestIdx = -1;
+          let largestArea = 0;
+          for (let i = 0; i < contours.size(); i++) {
+            const cnt = contours.get(i);
+            const area = cv.contourArea(cnt);
+            if (area > largestArea) {
+              largestArea = area;
+              largestIdx = i;
+            }
+            cnt.delete();
+          }
+
+          if (largestIdx >= 0) {
+            cv.drawContours(mask, contours, largestIdx, new cv.Scalar(255, 255, 255), -1);
+            cv.GaussianBlur(mask, mask, new cv.Size(9, 9), 0);
+          }
+
+          const maskedPixels = new Uint8ClampedArray(originalData.data);
+          const maskData = mask.data;
+          for (let i = 0; i < maskData.length; i++) {
+            const alpha = maskData[i];
+            const idx = i * 4;
+            if (alpha < 15) {
+              maskedPixels[idx] = 0;
+              maskedPixels[idx + 1] = 0;
+              maskedPixels[idx + 2] = 0;
+              maskedPixels[idx + 3] = 0;
+            } else {
+              maskedPixels[idx + 3] = alpha;
+            }
+          }
+
+          ctx.putImageData(new ImageData(maskedPixels, canvas.width, canvas.height), 0, 0);
+
+          src.delete();
+          gray.delete();
+          blurred.delete();
+          edges.delete();
+          kernel.delete();
+          contours.delete();
+          hierarchy.delete();
+          mask.delete();
+
+          statusEl.textContent = "Done. Fine-tune thresholds to change the silhouette.";
+        } catch (error) {
+          console.error(error);
+          statusEl.textContent = `Error: ${error.message}`;
+        } finally {
+          buttonEl.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
+
