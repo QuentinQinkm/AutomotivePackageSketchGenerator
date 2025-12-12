@@ -11,10 +11,8 @@ export class HumanFigureRenderer extends BaseHumanRenderer {
     constructor(options) {
         super({
             ...options,
-            config: {
-                anchorClass: 'driver-anchor',
-                layerName: 'driver'
-            }
+            anchorClass: 'driver-anchor',
+            layerName: 'driver'
         });
 
         this.elements = {
@@ -168,8 +166,45 @@ export class HumanFigureRenderer extends BaseHumanRenderer {
         }
     }
 
+    applyInputUpdates(updates) {
+        if (!updates || typeof updates !== 'object') return;
+        const state = this.stateManager.getState();
+
+        Object.entries(updates).forEach(([stateKey, value]) => {
+            let effectiveMin = -Infinity;
+            let effectiveMax = Infinity;
+
+            const adjuster = document.querySelector(`.smart-adjuster[data-param="${stateKey}"]`);
+            if (adjuster) {
+                const minVal = parseFloat(adjuster.dataset.min);
+                const maxVal = parseFloat(adjuster.dataset.max);
+                if (Number.isFinite(minVal)) effectiveMin = minVal;
+                if (Number.isFinite(maxVal)) effectiveMax = maxVal;
+            }
+
+            const clampedValue = Math.max(effectiveMin, Math.min(effectiveMax, value));
+            if (Number.isFinite(clampedValue) && state[stateKey] !== clampedValue) {
+                this.stateManager.setState({ [stateKey]: clampedValue });
+            }
+        });
+    }
+
+    ensureDriverGeometry() {
+        if (this.latestDriverGeometry) return this.latestDriverGeometry;
+        const state = this.stateManager.getState();
+        const pose = computeDriverPose(state);
+        if (!pose) return null;
+        this.latestDriverGeometry = {
+            frontWheelX: pose.frontWheelX,
+            floorY: pose.floorY,
+            hipX: pose.hip.x,
+            hipY: pose.hip.y
+        };
+        return this.latestDriverGeometry;
+    }
+
     updateHipFromDrag(svgCoords) {
-        const geometry = this.latestDriverGeometry;
+        const geometry = this.ensureDriverGeometry();
         if (!geometry) return;
         const { frontWheelX, floorY } = geometry;
         const newOffsetX = Math.round((svgCoords.x - frontWheelX) / SCALE);
@@ -181,7 +216,7 @@ export class HumanFigureRenderer extends BaseHumanRenderer {
     }
 
     updateHeelFromDrag(svgCoords) {
-        const geometry = this.latestDriverGeometry;
+        const geometry = this.ensureDriverGeometry();
         if (!geometry) return;
         const { hipX } = geometry;
         const clampedHeelX = Math.min(svgCoords.x, hipX);
@@ -190,7 +225,7 @@ export class HumanFigureRenderer extends BaseHumanRenderer {
     }
 
     updateHandFromDrag(svgCoords) {
-        const geometry = this.latestDriverGeometry;
+        const geometry = this.ensureDriverGeometry();
         if (!geometry) return;
         const { hipX, hipY } = geometry;
         const newDistanceX = Math.round((hipX - svgCoords.x) / SCALE);
@@ -202,7 +237,7 @@ export class HumanFigureRenderer extends BaseHumanRenderer {
     }
 
     updateHeadFromDrag(svgCoords) {
-        const geometry = this.latestDriverGeometry;
+        const geometry = this.ensureDriverGeometry();
         if (!geometry) return;
         const { hipX, hipY } = geometry;
         const dx = svgCoords.x - hipX;

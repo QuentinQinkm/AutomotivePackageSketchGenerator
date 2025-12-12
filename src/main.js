@@ -216,28 +216,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         stateManager
     });
 
-    // Wheelbase Sync Logic for Last Row
-    // When wheelbase changes, rear axle moves. We want Last Row (passengerHPointX) to move with it.
-    // Since passengerHPointX is "Dist to Driver", and Driver moves with Front, we must add deltaWheelBase to passengerHPointX.
+    const clampByAdjuster = (param, value) => {
+        if (!Number.isFinite(value)) return value;
+        let minVal = -Infinity;
+        let maxVal = Infinity;
+        const adjuster = document.querySelector(`.smart-adjuster[data-param="${param}"]`);
+        if (adjuster) {
+            const parsedMin = parseFloat(adjuster.dataset.min);
+            const parsedMax = parseFloat(adjuster.dataset.max);
+            if (Number.isFinite(parsedMin)) minVal = parsedMin;
+            if (Number.isFinite(parsedMax)) maxVal = parsedMax;
+        }
+        return Math.max(minVal, Math.min(maxVal, value));
+    };
+
+    // Wheelbase & Driver Position Sync Logic for Passenger Rows
+    // - Wheelbase change: passengers move with chassis (existing behavior).
+    // - Driver H-Point change: keep passengers fixed in world space by updating their
+    //   stored "distance to driver" inversely.
     let previousWheelBase = stateManager.state.wheelBase; // Init with current value
+    let previousHPointX = stateManager.state.hPointX;
     stateManager.subscribe((newState) => {
+        const updates = {};
+
         if (newState.wheelBase !== previousWheelBase) {
             const delta = newState.wheelBase - previousWheelBase;
             previousWheelBase = newState.wheelBase;
 
-            // Last Row: Moves with Rear Axle -> Increases by full Delta
-            const currentLastRowDist = newState.passengerHPointX || 0;
-            const newLastRowDist = currentLastRowDist + delta;
+            updates.passengerHPointX = (newState.passengerHPointX || 0) + delta;
+            updates.midRowHPointX = (newState.midRowHPointX || 0) + (delta / 2);
+        }
 
-            // Mid Row: Stays in Middle (Globally Stationary) -> Increases by half Delta
-            // (Since Driver moves away by delta/2, Mid Row must add delta/2 distance)
-            const currentMidRowDist = newState.midRowHPointX || 0;
-            const newMidRowDist = currentMidRowDist + (delta / 2);
+        if (newState.hPointX !== previousHPointX) {
+            const deltaDriver = newState.hPointX - previousHPointX;
+            previousHPointX = newState.hPointX;
 
-            // Update both
+            const basePassengerDist = updates.passengerHPointX !== undefined ? updates.passengerHPointX : (newState.passengerHPointX || 0);
+            const baseMidRowDist = updates.midRowHPointX !== undefined ? updates.midRowHPointX : (newState.midRowHPointX || 0);
+
+            updates.passengerHPointX = basePassengerDist - deltaDriver;
+            updates.midRowHPointX = baseMidRowDist - deltaDriver;
+        }
+
+        if (Object.keys(updates).length) {
             stateManager.setState({
-                passengerHPointX: newLastRowDist,
-                midRowHPointX: newMidRowDist
+                passengerHPointX: clampByAdjuster('passengerHPointX', updates.passengerHPointX),
+                midRowHPointX: clampByAdjuster('midRowHPointX', updates.midRowHPointX)
             });
         }
     });
