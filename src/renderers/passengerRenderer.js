@@ -33,31 +33,32 @@ TORSO.defaultAngleFromVertical = Math.atan2(TORSO.vector.x, -TORSO.vector.y);
 
 
 export class PassengerRenderer {
-    constructor({ canvasArea, stateManager, layerController, svg }) {
+    constructor({ canvasArea, stateManager, layerController, svg, config }) {
         this.canvasArea = canvasArea;
         // Find canvas content - needed for appending anchor layer
         this.canvasContent = document.getElementById('canvasContent') || canvasArea;
         this.stateManager = stateManager;
         this.layerController = layerController;
         this.svg = svg;
+        this.config = config; // { parentSelector, statePrefix, toggleKey, anchorLayerClass, layerName }
 
         this.elements = {
-            bodyParent: document.querySelector('.passenger-parent'),
-            bodyIcon: document.querySelector('.passenger-parent .bodyandhead-icon'),
-            bigLegIcon: document.querySelector('.passenger-parent .big-leg-icon'),
-            smallLegIcon: document.querySelector('.passenger-parent .small-leg-icon'),
+            bodyParent: document.querySelector(this.config.parentSelector),
+            bodyIcon: document.querySelector(`${this.config.parentSelector} .bodyandhead-icon`),
+            bigLegIcon: document.querySelector(`${this.config.parentSelector} .big-leg-icon`),
+            smallLegIcon: document.querySelector(`${this.config.parentSelector} .small-leg-icon`),
             // No arms
-            kneeMarker: document.querySelector('.passenger-parent .knee'),
-            heelMarker: document.querySelector('.passenger-parent .heel'),
-            bottomFootMarker: document.querySelector('.passenger-parent .bottom-foot'),
-            hipJoint: document.querySelector('.passenger-parent .hip-joint'),
-            topHead: document.querySelector('.passenger-parent .top-head')
+            kneeMarker: document.querySelector(`${this.config.parentSelector} .knee`),
+            heelMarker: document.querySelector(`${this.config.parentSelector} .heel`),
+            bottomFootMarker: document.querySelector(`${this.config.parentSelector} .bottom-foot`),
+            hipJoint: document.querySelector(`${this.config.parentSelector} .hip-joint`),
+            topHead: document.querySelector(`${this.config.parentSelector} .top-head`)
         };
 
         // Interaction Logic Setup
         this.latestPassengerPose = null;
         this.passengerAnchorLayer = document.createElement('div');
-        this.passengerAnchorLayer.className = 'passenger-anchor-layer';
+        this.passengerAnchorLayer.className = `passenger-anchor-layer ${this.config.anchorLayerClass || ''}`;
         this.passengerAnchorLayer.style.display = 'none';
         this.canvasContent.appendChild(this.passengerAnchorLayer);
 
@@ -87,26 +88,39 @@ export class PassengerRenderer {
         if (!this.elements.bodyParent) return;
 
         const state = this.stateManager.getState();
-        const showPassenger = state.showLastRow;
+        const showPassenger = state[this.config.toggleKey];
 
         // Opacity Logic
         const driverLayerActive = this.layerController?.isActive('driver') ?? false;
         const passengerLayerActive = this.layerController?.isActive('passenger') ?? false;
 
-        if (driverLayerActive) {
-            this.elements.bodyParent.style.opacity = '0.6';
-        } else if (passengerLayerActive) {
-            this.elements.bodyParent.style.opacity = '1';
-        } else {
-            // Other sections active (Chassis, Profile, Image)
-            this.elements.bodyParent.style.opacity = '0.6';
+        // Check if THIS specific row is the active one selected by the user
+        const activeRow = state.activePassengerRow || 'last';
+        const isMyRowActive = (this.config.isMidRow && activeRow === 'mid') ||
+            (!this.config.isMidRow && activeRow === 'last');
+
+        // Visual opacity logic: 
+        // If driver active -> dimmer
+        // If passenger active -> show full
+        // If other active -> dimmer
+        // BUT we need to distinguish WHICH passenger row controls are being viewed?
+        // Currently 'passenger' layer covers both. That's fine.
+
+        let opacity = '0.6';
+        if (passengerLayerActive) {
+            // If in passenger layer, only the SELECTED row is opaque (1.0).
+            // The other row is dimmed (0.6), just like Driver.
+            opacity = isMyRowActive ? '1' : '0.6';
         }
+
+        this.elements.bodyParent.style.opacity = opacity;
 
         const pose = this.computePassengerPose(state);
         const canRender = Boolean(showPassenger && pose);
 
         // Update anchor visibility
-        this.setAnchorsVisible(passengerLayerActive && canRender);
+        // Only show anchors if passenger layer is active AND this is the selected row
+        this.setAnchorsVisible(passengerLayerActive && canRender && isMyRowActive);
 
         if (!canRender) {
             this.elements.bodyParent.style.display = 'none';
@@ -118,7 +132,7 @@ export class PassengerRenderer {
         }
 
         this.elements.bodyParent.style.display = 'block';
-        // Add class to show markers if needed, or stick to anchors
+        // Add class to show markers if needed
         this.elements.bodyParent.classList.toggle('show-passenger-anchors', passengerLayerActive);
 
         this.latestPassengerPose = pose;
@@ -153,36 +167,61 @@ export class PassengerRenderer {
         }
     }
 
-    // ... Pose Computation Logic (Same as before) ...
     computePassengerPose(state) {
-        const wheelBasePx = state.wheelBase * SCALE;
-        const rearWheelX = CENTER_X + (wheelBasePx / 2); // Rear Axle X
+        // Dynamic Key Access
+        const P = this.config.statePrefix; // e.g. 'passenger' or 'midRow'
 
-        const hPointXPx = state.passengerHPointX * SCALE;
-        const hipX = rearWheelX - hPointXPx;
+        const hPointXPx = (state[`${P}HPointX`] || 0) * SCALE;
+
+        // Compute Hip X based on reference logic
+        // If Mid Row: Reference is CENTER_X
+        // If Last Row: Reference is Rear Axle
+
+        let hipX;
+        let referenceX; // For dragging
+
+        if (this.config.isMidRow) {
+            const centerX = CENTER_X; // Mid Axle (Center)
+            // Range -1000 to 1000. 
+            // If +500 (forward?), hip should be left of center?
+            // "Dist to mid axle". If I look at Last row: rearWheelX - hPointXPx. (Rear is right, minus means left).
+            // So +500 means 500px in front (left) of rear axle.
+            // Let's reuse that convention: + means Left (Front). - means Right (Rear).
+            hipX = centerX - hPointXPx;
+            referenceX = centerX;
+        } else {
+            // Last Row (Default)
+            // Reference: Rear Axle
+            const wheelBasePx = state.wheelBase * SCALE;
+            const rearWheelX = CENTER_X + (wheelBasePx / 2); // Rear Axle X
+            hipX = rearWheelX - hPointXPx;
+            referenceX = rearWheelX;
+        }
 
         const groundClearancePx = state.groundClearance * SCALE;
         const floorThicknessPx = state.floorThickness * SCALE;
         const chassisBottomY = GROUND_Y - groundClearancePx;
         const floorY = chassisBottomY - floorThicknessPx;
 
-        const hPointHeightPx = state.passengerHPointHeight * SCALE;
+        const hPointHeightPx = (state[`${P}HPointHeight`] || 0) * SCALE;
         const hipY = floorY - hPointHeightPx;
 
         const hip = { x: hipX, y: hipY };
 
-        const footFloorDistPx = state.passengerFootFloorDist * SCALE;
+        const footFloorDistPx = (state[`${P}FootFloorDist`] || 0) * SCALE;
         const heelY = floorY - footFloorDistPx;
 
-        const hipFootDistPx = state.passengerHipFootDist * SCALE;
+        const hipFootDistPx = (state[`${P}HipFootDist`] || 0) * SCALE;
         const heelX = hip.x - hipFootDistPx;
 
         const heel = { x: heelX, y: heelY };
 
-        const heightPx = (state.passengerHeight || 180) * 10 * SCALE;
+        const heightVal = state[`${P}Height`] || 170;
+        const heightPx = heightVal * 10 * SCALE;
         const legPose = this.solveLegIK(hip, heel, heightPx);
 
-        const torsoPose = this.solveTorso(state.passengerBodyRecline, legPose.thighPx, hip);
+        const bodyRecline = state[`${P}BodyRecline`] || 28;
+        const torsoPose = this.solveTorso(bodyRecline, legPose.thighPx, hip);
 
         const head = this.computeHead(hip, legPose.globalScale, torsoPose.actualBodyReclineAngle);
 
@@ -199,7 +238,7 @@ export class PassengerRenderer {
             head,
             // For dragging calculations
             floorY,
-            rearWheelX
+            referenceX
         };
     }
 
@@ -332,7 +371,7 @@ export class PassengerRenderer {
         this.updateMarker(this.elements.kneeMarker, pose.knee, pose);
         this.updateMarker(this.elements.heelMarker, pose.heel, pose, pose.shinRotationDeg);
         this.updateMarker(this.elements.bottomFootMarker, pose.bottomFoot, pose);
-        this.updateMarker(this.elements.topHead, pose.head, pose); // Added topHead mainly for visual debug if visible
+        this.updateMarker(this.elements.topHead, pose.head, pose);
     }
 
     updateMarker(element, worldPoint, pose, rotationDeg = 0) {
@@ -420,10 +459,11 @@ export class PassengerRenderer {
         this.draggingAnchor = key;
         this.setAnchorVisualState(key, true);
 
+        const P = this.config.statePrefix;
         let param = null;
-        if (key === 'hPoint') param = ['passengerHPointX', 'passengerHPointHeight'];
-        else if (key === 'heel') param = ['passengerFootFloorDist', 'passengerHipFootDist'];
-        else if (key === 'head') param = 'passengerBodyRecline';
+        if (key === 'hPoint') param = [`${P}HPointX`, `${P}HPointHeight`];
+        else if (key === 'heel') param = [`${P}FootFloorDist`, `${P}HipFootDist`];
+        else if (key === 'head') param = `${P}BodyRecline`;
 
         if (param) this.stateManager.setInteraction(param);
 
@@ -460,14 +500,17 @@ export class PassengerRenderer {
 
     handleDrag(key, svgCoords) {
         if (!this.latestPassengerPose) return;
-        const { rearWheelX, floorY, hip } = this.latestPassengerPose;
+        const { referenceX, floorY, hip } = this.latestPassengerPose;
+        const P = this.config.statePrefix;
 
         switch (key) {
             case 'hPoint': {
-                // H-Point X is Dist to Rear Axle.
-                // X = RearAxle - HPointX
-                // So HPointX = RearAxle - CursorX
-                const newDistX = Math.round((rearWheelX - svgCoords.x) / SCALE);
+                // X Logic: referenceX - HPointX = CursorX
+                // => HPointX = referenceX - CursorX
+                // This logic holds for both Mid (reference=CenterX) and Last (reference=RearAxleX)
+                // assuming +X means "Front of Reference".
+
+                const newDistX = Math.round((referenceX - svgCoords.x) / SCALE);
 
                 // Height is FloorY - HipY
                 // So HipY = FloorY - Height
@@ -475,8 +518,8 @@ export class PassengerRenderer {
                 const newHeight = Math.round((floorY - svgCoords.y) / SCALE);
 
                 this.applyInputUpdates({
-                    passengerHPointX: newDistX,
-                    passengerHPointHeight: newHeight
+                    [`${P}HPointX`]: newDistX,
+                    [`${P}HPointHeight`]: newHeight
                 });
                 break;
             }
@@ -492,8 +535,8 @@ export class PassengerRenderer {
                 const newHipFootDist = Math.round((hip.x - svgCoords.x) / SCALE);
 
                 this.applyInputUpdates({
-                    passengerFootFloorDist: newFootFloorDist,
-                    passengerHipFootDist: newHipFootDist
+                    [`${P}FootFloorDist`]: newFootFloorDist,
+                    [`${P}HipFootDist`]: newHipFootDist
                 });
                 break;
             }
@@ -502,18 +545,11 @@ export class PassengerRenderer {
                 // Calculate angle between Hip and Cursor
                 const dx = svgCoords.x - hip.x;
                 const dy = svgCoords.y - hip.y;
-                // Since Y increases downwards, an upright torso (-Y) has negative angle logic if using atan2 directly?
-                // Standard: Recline is deviation from Vertical.
-                // Vector: Cursor - Hip.
-                // AngleFromVertical = atan2(dx, -dy) ?
-                // If dx=0, dy=-10 (up), atan2(0, 10) = 0.
-                // If dx=10 (reclined), dy=-10, atan2(10, 10) = 45deg.
-                // Yes.
                 const angleRad = Math.atan2(dx, -dy);
                 const angleDeg = angleRad * 180 / Math.PI;
 
                 this.applyInputUpdates({
-                    passengerBodyRecline: Math.round(angleDeg)
+                    [`${P}BodyRecline`]: Math.round(angleDeg)
                 });
                 break;
             }
@@ -522,29 +558,14 @@ export class PassengerRenderer {
 
     applyInputUpdates(updates) {
         if (!updates || typeof updates !== 'object') return;
-        const inputs = this.stateManager.inputs;
         const state = this.stateManager.getState();
         let hasChange = false;
 
         Object.entries(updates).forEach(([stateKey, value]) => {
-            // Need to clamp? 
-            // Reuse logic from HumanFigureRenderer logic if possible or implement simple clamp
-            // Assuming inputs have min/max
-            // Wait, inputs dict keys match state keys? Yes.
-            const input = inputs[stateKey] || document.querySelector(`[data-param="${stateKey}"]`);
-            // Note: inputs dictionary in main.js might not contain all new passenger inputs explicitly if I didn't add them?
-            // I checked main.js, I didn't update the `inputs` object there to include the NEW adjusters (passengerHPointHeight etc).
-            // StateManager reads via querySelectorAll('.smart-adjuster') for initial load, but `inputs` object is passed manually.
-            // If I want to update inputs, I need to find them.
-            // But StateManager.setState works regardless of inputs existing. inputs are just for Sync.
-            // `HumanFigureRenderer` uses `inputs` from stateManager to clamp.
-            // I should find the element dynamically if missing.
-
             let effectiveMax = Infinity;
             let effectiveMin = -Infinity;
 
             // Check if we have the input element to read constraints
-            // SmartAdjuster element
             const adjuster = document.querySelector(`.smart-adjuster[data-param="${stateKey}"]`);
             if (adjuster) {
                 effectiveMin = parseFloat(adjuster.dataset.min);
@@ -553,16 +574,6 @@ export class PassengerRenderer {
 
             const clampedValue = Math.max(effectiveMin, Math.min(effectiveMax, value));
 
-            if (state[stateKey] !== clampedValue) {
-                hasChange = true;
-                // We update state directly here via one batch if possible? 
-                // StateManager doesn't support batch update returning.
-                // But we can just call setState.
-            }
-
-            // We update state. StateManager will update inputs if they are subscribed or we manual sync?
-            // StateManager updates listeners. SmartAdjuster is subscribed.
-            // So we just need to call setState.
             if (state[stateKey] !== clampedValue) {
                 this.stateManager.setState({ [stateKey]: clampedValue });
             }
@@ -637,5 +648,9 @@ export class PassengerRenderer {
         this.resizeObserver.disconnect();
         window.removeEventListener('mousemove', this.handleMouseMove);
         window.removeEventListener('mouseup', this.handleMouseUp);
+        // Clean up anchors?
+        if (this.passengerAnchorLayer) {
+            this.passengerAnchorLayer.remove();
+        }
     }
 }

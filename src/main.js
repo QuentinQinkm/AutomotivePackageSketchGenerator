@@ -85,11 +85,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         layerController
     });
 
-    const passengerRenderer = new PassengerRenderer({
+    const midRowRenderer = new PassengerRenderer({
         canvasArea,
         stateManager,
         layerController,
-        svg
+        svg,
+        config: {
+            parentSelector: '.passenger-parent-mid',
+            statePrefix: 'midRow',
+            toggleKey: 'showMidRow',
+            anchorLayerClass: 'passenger-anchor-layer-mid',
+            isMidRow: true
+        }
+    });
+
+    const lastRowRenderer = new PassengerRenderer({
+        canvasArea,
+        stateManager,
+        layerController,
+        svg,
+        config: {
+            parentSelector: '.passenger-parent-last',
+            statePrefix: 'passenger', // Keeping legacy 'passenger' prefix for Last Row to match existing state
+            toggleKey: 'showLastRow',
+            anchorLayerClass: 'passenger-anchor-layer-last',
+            isMidRow: false
+        }
     });
 
     const zoomController = new CanvasZoomController({
@@ -120,7 +141,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const render = (state, context) => {
         humanFigureRenderer.update(context);
-        passengerRenderer.update(context);
+
+        midRowRenderer.update(context);
+        lastRowRenderer.update(context);
         chassisRenderer.draw(context);
     };
 
@@ -167,7 +190,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     handleToggle('showMannequinToggle', 'showMannequin');
-    handleToggle('showLastRowToggle', 'showLastRow'); // New passenger toggle
+    handleToggle('showMannequinToggle', 'showMannequin');
+    handleToggle('showLastRowToggle', 'showLastRow');
+    handleToggle('showMidRowToggle', 'showMidRow');
 
 
 
@@ -487,22 +512,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Initial render
-    // Handle Passenger Row Selection
-    const passengerRowBtns = document.querySelectorAll('.passenger-row-btn');
-    passengerRowBtns.forEach(btn => {
+    // Handle Passenger Row Tabs (Mid / Last)
+    const passengerRowTabs = document.querySelectorAll('.passenger-row-tabs-btn');
+    const midRowControls = document.getElementById('midRowControls');
+    const lastRowControls = document.getElementById('lastRowControls');
+
+    passengerRowTabs.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent switching layer (if wrapper logic handled that)
-            // Actually wrapper doesn't have click listener, button inside does. 
-            // The passenger layer button is separate sibling. 
-            // But popup is inside wrapper.
+            e.stopPropagation();
 
-            // Update UI
-            passengerRowBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
+            // Force switch to passenger layer if not already active
+            if (layerController.selectedLayer !== 'passenger') {
+                layerController.setActiveLayer('passenger');
+            }
 
-            const rows = parseInt(btn.dataset.rows, 10);
-            stateManager.setState({ showLastRow: rows > 0 });
+            const target = btn.dataset.target; // 'mid' or 'last'
+            stateManager.setState({ activePassengerRow: target });
         });
+    });
+
+    stateManager.subscribe((state) => {
+        const activeRow = state.activePassengerRow || 'last';
+
+        passengerRowTabs.forEach(btn => {
+            const target = btn.dataset.target;
+            btn.classList.toggle('active', target === activeRow);
+        });
+
+        if (activeRow === 'mid') {
+            midRowControls.classList.remove('hidden');
+            lastRowControls.classList.add('hidden');
+        } else {
+            midRowControls.classList.add('hidden');
+            lastRowControls.classList.remove('hidden');
+        }
     });
 
     // Initial render

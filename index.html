@@ -241,18 +241,36 @@
                                 <div class="heel"></div>
                             </div>
                         </div>
-                        <div class="passenger-parent" style="display: none;">
+
+                        <!-- Mid Row Passenger -->
+                        <div class="passenger-parent-mid" style="display: none;">
                             <div class="bodyandhead-icon" data-inline-svg="HumanFigure/BodyAndHead.svg"
                                 aria-label="passenger body and head"></div>
                             <div class="big-leg-icon" data-inline-svg="HumanFigure/Big Leg.svg"
                                 aria-label="passenger big leg">
                             </div>
-                            <!-- No arms for passenger -->
                             <div class="small-leg-icon" data-inline-svg="HumanFigure/Small Leg.svg"
                                 aria-label="passenger small leg"></div>
                             <div class="hip-joint-parent">
                                 <div class="hip-joint"></div>
-                                <!-- No elbow/shoulder/hand -->
+                                <div class="knee"></div>
+                                <div class="bottom-foot"></div>
+                                <div class="top-head"></div>
+                                <div class="heel"></div>
+                            </div>
+                        </div>
+
+                        <!-- Last Row Passenger (Original) -->
+                        <div class="passenger-parent-last" style="display: none;">
+                            <div class="bodyandhead-icon" data-inline-svg="HumanFigure/BodyAndHead.svg"
+                                aria-label="passenger body and head"></div>
+                            <div class="big-leg-icon" data-inline-svg="HumanFigure/Big Leg.svg"
+                                aria-label="passenger big leg">
+                            </div>
+                            <div class="small-leg-icon" data-inline-svg="HumanFigure/Small Leg.svg"
+                                aria-label="passenger small leg"></div>
+                            <div class="hip-joint-parent">
+                                <div class="hip-joint"></div>
                                 <div class="knee"></div>
                                 <div class="bottom-foot"></div>
                                 <div class="top-head"></div>
@@ -322,27 +340,51 @@
 
                 <!-- Passenger Controls Overlay -->
                 <div class="passenger-controls-overlay hidden" id="passengerControls">
-                    <div class="control-row">
-                        <!-- Show Last Row Toggle -->
-                        <div class="smart-toggle on" id="showLastRowToggle">
-                            <div class="toggle-label">Show Last Row</div>
-                            <div class="toggle-value">ON</div>
-                        </div>
 
-                        <!-- Adjusters -->
-                        <div class="smart-adjuster" data-param="passengerHPointHeight" data-label="H-Point Height"
-                            data-min="100" data-max="500" data-step="10"></div>
-                        <div class="smart-adjuster" data-param="passengerHPointX" data-label="Dist. to rear"
-                            data-min="200" data-max="1500" data-step="10"></div>
-                        <div class="smart-adjuster" data-param="passengerBodyRecline" data-label="Body Recline"
-                            data-min="10" data-max="70" data-step="1"></div>
-                        <div class="smart-adjuster" data-param="passengerHipFootDist" data-label="Hip-Foot Dist"
-                            data-min="400" data-max="950" data-step="10"></div>
-                        <div class="smart-adjuster" data-param="passengerFootFloorDist" data-label="Foot-Floor Dist"
-                            data-min="0" data-max="300" data-step="5"></div> <!-- New Adjuster -->
-                        <div class="smart-adjuster" data-param="passengerHeight" data-label="Passenger Height"
-                            data-min="160" data-max="190" data-step="10"></div>
+                    <!-- Mid Row Controls Wrapper -->
+                    <div id="midRowControls" class="passenger-subset-controls hidden">
+                        <div class="control-row">
+                            <div class="smart-toggle on" id="showMidRowToggle">
+                                <div class="toggle-label">Show Mid Row</div>
+                                <div class="toggle-value">ON</div>
+                            </div>
+                            <div class="smart-adjuster" data-param="midRowHPointHeight" data-label="H-Point Height"
+                                data-min="100" data-max="500" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="midRowHPointX" data-label="Dist. to mid axle"
+                                data-min="-1000" data-max="1000" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="midRowBodyRecline" data-label="Body Recline"
+                                data-min="10" data-max="70" data-step="1"></div>
+                            <div class="smart-adjuster" data-param="midRowHipFootDist" data-label="Hip-Foot Dist"
+                                data-min="400" data-max="950" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="midRowFootFloorDist" data-label="Foot-Floor Dist"
+                                data-min="0" data-max="300" data-step="5"></div>
+                            <div class="smart-adjuster" data-param="midRowHeight" data-label="Passenger Height"
+                                data-min="160" data-max="190" data-step="10"></div>
+                        </div>
                     </div>
+
+                    <!-- Last Row Controls Wrapper -->
+                    <div id="lastRowControls" class="passenger-subset-controls">
+                        <div class="control-row">
+                            <div class="smart-toggle on" id="showLastRowToggle">
+                                <div class="toggle-label">Show Last Row</div>
+                                <div class="toggle-value">ON</div>
+                            </div>
+                            <div class="smart-adjuster" data-param="passengerHPointHeight" data-label="H-Point Height"
+                                data-min="100" data-max="500" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="passengerHPointX" data-label="Dist. to rear"
+                                data-min="200" data-max="1500" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="passengerBodyRecline" data-label="Body Recline"
+                                data-min="10" data-max="70" data-step="1"></div>
+                            <div class="smart-adjuster" data-param="passengerHipFootDist" data-label="Hip-Foot Dist"
+                                data-min="400" data-max="950" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="passengerFootFloorDist" data-label="Foot-Floor Dist"
+                                data-min="0" data-max="300" data-step="5"></div>
+                            <div class="smart-adjuster" data-param="passengerHeight" data-label="Passenger Height"
+                                data-min="160" data-max="190" data-step="10"></div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Image Controls Overlay -->
@@ -410,9 +452,8 @@
                     <div class="layer-button-wrapper passenger-wrapper">
                         <div class="passenger-options-popup">
                             <div class="passenger-row-options">
-                                <button class="passenger-row-btn active" data-rows="0">0</button>
-                                <button class="passenger-row-btn" data-rows="1">1</button>
-                                <button class="passenger-row-btn" data-rows="2">2</button>
+                                <button class="passenger-row-tabs-btn" data-target="mid">Mid Row</button>
+                                <button class="passenger-row-tabs-btn active" data-target="last">Last Row</button>
                             </div>
                         </div>
                         <button class="layer-button" data-layer="passenger">Passenger</button>

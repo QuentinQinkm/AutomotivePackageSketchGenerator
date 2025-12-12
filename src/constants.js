@@ -123,7 +123,15 @@ export const DEFAULT_PROFILE = {
     "passengerHipFootDist": 600,
     "passengerBodyRecline": 28,
     "passengerFootFloorDist": 0,
-    "passengerHeight": 180,
+    "passengerHeight": 170,
+    "showMidRow": false,
+    "midRowHPointHeight": 280,
+    "midRowHPointX": 0, /* Distance to mid axle (center) */
+    "midRowHipFootDist": 600,
+    "midRowBodyRecline": 28,
+    midRowFootFloorDist: 0,
+    midRowHeight: 170,
+    activePassengerRow: 'last', // 'mid' or 'last'
     "bodyControlPoints": {
         "bonnet": [
             {

@@ -1360,33 +1360,33 @@ body.align-mode #carCanvas {
     align-items: center;
 }
 
-.passenger-row-btn {
+.passenger-row-tabs-btn {
     background: transparent;
     border: none;
     padding: 0;
     width: auto;
     height: auto;
     font-family: 'Inter', sans-serif;
-    font-size: 16px;
+    font-size: 14px;
+    /* User requested 14 font */
     font-weight: 300;
     cursor: pointer;
     transition: color 0.2s ease, opacity 0.2s ease;
 
-    /* Default state: slightly dimmed compared to active */
+    /* Default state: slightly dimmed */
     color: #000000;
     opacity: 0.4;
 }
 
-.passenger-row-btn:hover {
+.passenger-row-tabs-btn:hover {
     background: transparent;
     opacity: 0.7;
 }
 
-.passenger-row-btn.active {
+.passenger-row-tabs-btn.active {
     background: transparent;
     border: none;
     color: #000000;
     opacity: 1;
     font-weight: 500;
-    /* Optional: make selected slightly bolder? Or just fully opaque? User said "text in black" */
 }
