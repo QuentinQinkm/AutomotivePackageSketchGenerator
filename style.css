@@ -16,8 +16,8 @@
 #profileBarContainer {
     position: absolute;
     top: auto;
-    bottom: 360px;
-    /* Raised above the controls area */
+    bottom: var(--profile-bar-bottom, 360px);
+    /* Raised above the controls area; JS updates var */
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -780,8 +780,8 @@ input[type=range]::-moz-range-thumb {
 #profileBarContainer {
     position: absolute;
     top: auto;
-    bottom: 360px;
-    /* Raised above the controls area */
+    bottom: var(--profile-bar-bottom, 360px);
+    /* Raised above the controls area; JS updates var */
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -845,7 +845,6 @@ input[type=range]::-moz-range-thumb {
 .chassis-controls-overlay,
 .driver-controls-overlay,
 .passenger-controls-overlay,
-.passenger-subset-controls,
 .profile-controls-overlay {
     position: absolute;
     bottom: 110px;
@@ -859,6 +858,16 @@ input[type=range]::-moz-range-thumb {
     pointer-events: none;
     /* Let clicks pass through to canvas */
     transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.passenger-subset-controls {
+    position: static;
+    transform: none;
+    bottom: auto;
+    left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .chassis-controls-overlay .control-row,

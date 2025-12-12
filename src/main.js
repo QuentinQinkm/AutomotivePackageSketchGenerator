@@ -350,14 +350,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (activeOverlay) {
             const overlayRect = activeOverlay.getBoundingClientRect();
-            // The visual start of the controls (without the gradient buffer)
+            // Distance from overlay top to bottom of canvas
             const contentHeight = Math.round(canvasRect.bottom - overlayRect.top);
-            // The backdrop height (with gradient buffer)
+            // Backdrop height (with gradient buffer)
             offset = contentHeight + 120;
 
             document.documentElement.style.setProperty('--controls-content-height', `${contentHeight + 20}px`);
+
+            // Place profile bar just above the top row: small gap to keep it close
+            const profileGap = 20;
+            const profileBottom = Math.max(40, Math.min(canvasRect.height, contentHeight + profileGap));
+            document.documentElement.style.setProperty('--profile-bar-bottom', `${profileBottom}px`);
         } else {
             document.documentElement.style.setProperty('--controls-content-height', `20px`);
+            document.documentElement.style.setProperty('--profile-bar-bottom', `360px`);
         }
 
         offset = Math.max(0, Math.min(canvasRect.height, offset));
