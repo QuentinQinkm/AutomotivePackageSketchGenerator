@@ -1,3 +1,5 @@
+import { CoordinateSystem } from './utils/coordinateSystem.js';
+import { ASSET_COORDS } from './constants.js';
 import { ImageOverlayManager } from './image/imageOverlayManager.js';
 import { ChassisRenderer } from './renderers/chassisRenderer.js';
 import { HumanFigureRenderer } from './renderers/humanFigureRenderer.js';
@@ -9,6 +11,7 @@ import { loadInlineSvgs } from './ui/inlineSvgLoader.js';
 import { SmartAdjuster } from './ui/smartAdjuster.js';
 import { SmartToggle } from './ui/smartToggle.js';
 import { ProfileManager } from './utils/profileManager.js';
+import { SmartSelectionController } from './ui/smartSelectionController.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const svg = document.getElementById('carCanvas');
@@ -62,7 +65,67 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const stateManager = new StateManager({ inputs, displays });
 
-    await loadInlineSvgs(document.querySelectorAll('[data-inline-svg]'));
+
+    const hipAssetPosition = {
+        x: ASSET_COORDS.parentOffset.x + ASSET_COORDS.hip.x,
+        y: ASSET_COORDS.parentOffset.y + ASSET_COORDS.hip.y
+    };
+
+    const coordinateSystem = new CoordinateSystem({
+        svg,
+        canvasArea,
+        hipAssetPosition
+    });
+
+    // --- Dynamic Defaults Calculation ---
+    // User Request: 
+    // Mid Row: 500mm from Driver
+    // Last Row: (TireSize/2 + WheelArchGap + 100) from Rear Axle (which is relative to RearAxleX)
+    // Wait, the input logic is "Distance to Driver".
+    // So we need to convert the "Distance to Rear Axle" requirement into "Distance to Driver".
+
+    // Default Values (from HTML inputs or Constants)
+    const tireDiameter = parseInt(inputs.tireDiameter.value, 10);
+    const wheelArchGap = parseInt(inputs.wheelArchGap.value, 10);
+    const wheelBase = parseInt(inputs.wheelBase.value, 10);
+    const hPointX = parseInt(inputs.hPointX.value, 10); // Driver Dist from Front Wheel
+
+    // Calculate Rear Axle X (Relative to Front Wheel X) = WheelBase
+    // Valid Rear Passenger Pos (relative to Rear Axle X) = -(TireDiameter/2 + WheelArchGap + 100)
+    // (Assuming "to the rear axle" means in front of it, so negative offset from rear axle)
+    // Let's assume standard packaging: Passenger hip is indeed in front of rear axle.
+
+    const distFromRearAxle = (tireDiameter / 2) + wheelArchGap + 100;
+    // Passenger X relative to Front Wheel = WheelBase - distFromRearAxle
+
+    // We need "Distance to Driver".
+    // DistToDriver = PassengerX - DriverX
+    // DistToDriver = (WheelBase - distFromRearAxle) - hPointX
+
+    const lastRowDefaultDist = Math.round(wheelBase - distFromRearAxle - hPointX);
+    const midRowDefaultDist = 500;
+
+    // Apply defaults to StateManager (which will sync inputs via subscribers/displays)
+    stateManager.setState({
+        midRowHPointX: midRowDefaultDist,
+        passengerHPointX: lastRowDefaultDist
+    }, { silent: true }); // Silent to avoid initial render burst? Or maybe false to ensure UI sync?
+    // Actually, we want UI to sync. Silent=false.
+    // Wait, setState syncs inputs if we implemented that method.
+
+    // Explicitly update inputs just in case StateManager sync isn't fully wired for init
+    if (inputs.midRowHPointX) inputs.midRowHPointX.value = midRowDefaultDist;
+    if (inputs.passengerHPointX) inputs.passengerHPointX.value = lastRowDefaultDist;
+
+    // Force display update via notify?
+    stateManager.notify();
+    // ------------------------------------
+
+    try {
+        await loadInlineSvgs(document.querySelectorAll('[data-inline-svg]'));
+    } catch (e) {
+        console.error('Failed to load inline SVGs:', e);
+    }
 
     const layerController = new LayerController({
         buttons: document.querySelectorAll('.layer-button'),
@@ -82,34 +145,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         canvasContent,
         svg,
         stateManager,
-        layerController
+        layerController,
+        coordinateSystem // Injected
     });
 
     const midRowRenderer = new PassengerRenderer({
         canvasArea,
+        canvasContent,
         stateManager,
         layerController,
         svg,
+        coordinateSystem, // Injected
         config: {
             parentSelector: '.passenger-parent-mid',
             statePrefix: 'midRow',
             toggleKey: 'showMidRow',
             anchorLayerClass: 'passenger-anchor-layer-mid',
-            isMidRow: true
+            isMidRow: true,
+            layerName: 'passenger'
         }
     });
 
     const lastRowRenderer = new PassengerRenderer({
         canvasArea,
+        canvasContent,
         stateManager,
         layerController,
         svg,
+        coordinateSystem, // Injected
         config: {
             parentSelector: '.passenger-parent-last',
-            statePrefix: 'passenger', // Keeping legacy 'passenger' prefix for Last Row to match existing state
+            statePrefix: 'passenger',
             toggleKey: 'showLastRow',
             anchorLayerClass: 'passenger-anchor-layer-last',
-            isMidRow: false
+            isMidRow: false,
+            layerName: 'passenger'
         }
     });
 
@@ -139,12 +209,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         layerController
     });
 
-    const render = (state, context) => {
-        humanFigureRenderer.update(context);
 
-        midRowRenderer.update(context);
-        lastRowRenderer.update(context);
-        chassisRenderer.draw(context);
+    const smartSelectionController = new SmartSelectionController({
+        canvasArea,
+        layerController,
+        stateManager
+    });
+
+    // Wheelbase Sync Logic for Last Row
+    // When wheelbase changes, rear axle moves. We want Last Row (passengerHPointX) to move with it.
+    // Since passengerHPointX is "Dist to Driver", and Driver moves with Front, we must add deltaWheelBase to passengerHPointX.
+    let previousWheelBase = stateManager.state.wheelBase; // Init with current value
+    stateManager.subscribe((newState) => {
+        if (newState.wheelBase !== previousWheelBase) {
+            const delta = newState.wheelBase - previousWheelBase;
+            previousWheelBase = newState.wheelBase;
+
+            // Last Row: Moves with Rear Axle -> Increases by full Delta
+            const currentLastRowDist = newState.passengerHPointX || 0;
+            const newLastRowDist = currentLastRowDist + delta;
+
+            // Mid Row: Stays in Middle (Globally Stationary) -> Increases by half Delta
+            // (Since Driver moves away by delta/2, Mid Row must add delta/2 distance)
+            const currentMidRowDist = newState.midRowHPointX || 0;
+            const newMidRowDist = currentMidRowDist + (delta / 2);
+
+            // Update both
+            stateManager.setState({
+                passengerHPointX: newLastRowDist,
+                midRowHPointX: newMidRowDist
+            });
+        }
+    });
+
+    const render = (state, context) => {
+        try {
+            humanFigureRenderer.update(context);
+            midRowRenderer.update(context);
+            lastRowRenderer.update(context);
+            chassisRenderer.draw(context);
+        } catch (e) {
+            console.error('Render Loop Error:', e);
+        }
     };
 
     // Initialize Smart Adjusters
@@ -323,14 +429,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         inputs.bodyReclineAngle,
         inputs.handHeight,
         inputs.handDistanceX
-    ];
+    ].filter(Boolean);
 
-    inputHandlers.forEach((input) => {
+    inputHandlers.filter(input => input).forEach((input) => {
         input.addEventListener('input', () => stateManager.updateFromInputs());
     });
 
-    inputs.mannequinHeight.addEventListener('change', () => stateManager.updateFromInputs());
-    inputs.showMannequin.addEventListener('change', () => stateManager.updateFromInputs());
+    if (inputs.mannequinHeight) {
+        inputs.mannequinHeight.addEventListener('change', () => stateManager.updateFromInputs());
+    }
+    if (inputs.showMannequin) {
+        inputs.showMannequin.addEventListener('change', () => stateManager.updateFromInputs());
+    }
 
     // Initialize Profile Manager
     // Initialize Profile Manager

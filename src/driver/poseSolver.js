@@ -74,7 +74,7 @@ export function computeDriverPose(state) {
     };
 }
 
-function getHipPosition(state, frontWheelX, floorY) {
+export function getHipPosition(state, frontWheelX, floorY) {
     const hPointXPx = state.hPointX * SCALE;
     const hHeightPx = state.hPointHeight * SCALE;
     return {
@@ -83,7 +83,7 @@ function getHipPosition(state, frontWheelX, floorY) {
     };
 }
 
-function solveLegPose(state, hip, floorY) {
+export function solveLegPose(state, hip, floorY) {
     const heightPx = (state.mannequinHeight || 0) * 10 * SCALE;
     const thighLen = heightPx * LEG_LENGTH_RATIO.thigh;
     const shinLen = heightPx * LEG_LENGTH_RATIO.shin;
@@ -133,6 +133,7 @@ function solveLegPose(state, hip, floorY) {
         knee,
         heel: finalHeel,
         bottomFoot,
+        bottomFoot,
         thighRotationDeg: toDegrees(thighAngle - Math.atan2(defaultThighVec.y, defaultThighVec.x)),
         shinRotationDeg: toDegrees(shinAngle - Math.atan2(defaultShinVec.y, defaultShinVec.x)),
         scaleFactors: {
@@ -159,7 +160,7 @@ function clampLegDistance(hip, heel, { thighLen, shinLen, maxLegReach, minLegRea
     return { dx };
 }
 
-function solveTorsoRotation(state, thighLenPx, hip) {
+export function solveTorsoRotation(state, thighLenPx, hip) {
     const desiredDeg = state.bodyReclineAngle;
     const desiredRad = degreesToRadians(desiredDeg - toDegrees(TORSO.defaultAngleFromVertical));
     const currentAngle = TORSO.defaultAngleFromHorizontal + desiredRad;
@@ -176,7 +177,7 @@ function solveTorsoRotation(state, thighLenPx, hip) {
     };
 }
 
-function solveArmPose(state, hip, torso, thighLenPx) {
+export function solveArmPose(state, hip, torso, thighLenPx) {
     const simpleScale = thighLenPx / distanceBetween(ASSET_COORDS.knee, ASSET_COORDS.hip);
     const targetHand = {
         x: hip.x - (state.handDistanceX * SCALE),
@@ -254,7 +255,7 @@ function computeFootEnd(knee, shinAngle, shinLen) {
     };
 }
 
-function computeHeadPosition(state, hip, globalScale, actualBodyReclineAngle) {
+export function computeHeadPosition(state, hip, globalScale, actualBodyReclineAngle) {
     const headVector = {
         x: ASSET_COORDS.head.x - ASSET_COORDS.hip.x,
         y: ASSET_COORDS.head.y - ASSET_COORDS.hip.y
@@ -269,7 +270,7 @@ function computeHeadPosition(state, hip, globalScale, actualBodyReclineAngle) {
     };
 }
 
-function rotateVector(vector, angleRad) {
+export function rotateVector(vector, angleRad) {
     const cos = Math.cos(angleRad);
     const sin = Math.sin(angleRad);
     return {
@@ -305,11 +306,10 @@ function square(value) {
     return value * value;
 }
 
-function toDegrees(rad) {
+export function toDegrees(rad) {
     return rad * (180 / Math.PI);
 }
 
-function degreesToRadians(deg) {
+export function degreesToRadians(deg) {
     return deg * (Math.PI / 180);
 }
-

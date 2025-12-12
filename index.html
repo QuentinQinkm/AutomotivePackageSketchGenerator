@@ -24,6 +24,14 @@
                         <div class="control-section">
                             <h3>Chassis</h3>
                             <div class="control-group">
+                                <label>Dist. to Driver</label>
+                                <div class="slider-container">
+                                    <input type="range" class="smart-adjuster" id="passengerHPointX"
+                                        data-param="passengerHPointX" min="500" max="3000" value="1600" step="10">
+                                    <span class="value-display" id="passengerHPointXVal">1600mm</span>
+                                </div>
+                            </div>
+                            <div class="control-group">
                                 <label for="tireDiameter">
                                     <span>Tire Diameter</span>
                                     <span class="value-display" id="tireDiameterVal">700mm</span>
@@ -350,8 +358,8 @@
                             </div>
                             <div class="smart-adjuster" data-param="midRowHPointHeight" data-label="H-Point Height"
                                 data-min="100" data-max="500" data-step="10"></div>
-                            <div class="smart-adjuster" data-param="midRowHPointX" data-label="Dist. to mid axle"
-                                data-min="-1000" data-max="1000" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="midRowHPointX" data-label="Dist. to Driver"
+                                data-min="500" data-max="1500" data-step="10"></div>
                             <div class="smart-adjuster" data-param="midRowBodyRecline" data-label="Body Recline"
                                 data-min="10" data-max="70" data-step="1"></div>
                             <div class="smart-adjuster" data-param="midRowHipFootDist" data-label="Hip-Foot Dist"
@@ -372,8 +380,8 @@
                             </div>
                             <div class="smart-adjuster" data-param="passengerHPointHeight" data-label="H-Point Height"
                                 data-min="100" data-max="500" data-step="10"></div>
-                            <div class="smart-adjuster" data-param="passengerHPointX" data-label="Dist. to rear"
-                                data-min="200" data-max="1500" data-step="10"></div>
+                            <div class="smart-adjuster" data-param="passengerHPointX" data-label="Dist. to Driver"
+                                data-min="-500" data-max="3000" data-step="10"></div>
                             <div class="smart-adjuster" data-param="passengerBodyRecline" data-label="Body Recline"
                                 data-min="10" data-max="70" data-step="1"></div>
                             <div class="smart-adjuster" data-param="passengerHipFootDist" data-label="Hip-Foot Dist"

@@ -1,69 +1,61 @@
+import { BaseHumanRenderer } from './baseHumanRenderer.js';
 import {
     ASSET_COORDS,
     ASSET_PIVOTS,
     CENTER_X,
     GROUND_Y,
     SCALE,
-    COLOR_FRONT_POINT,
-    COLOR_REAR_POINT,
-    DOT_RADIUS
-} from '../constants.js';
 
-const HIP_ASSET_POSITION = {
-    x: ASSET_COORDS.parentOffset.x + ASSET_COORDS.hip.x,
-    y: ASSET_COORDS.parentOffset.y + ASSET_COORDS.hip.y
-};
+    COLOR_FRONT_POINT,
+    COLOR_REAR_POINT
+} from '../constants.js';
+import {
+    solveTorsoRotation,
+    computeHeadPosition
+} from '../driver/poseSolver.js';
 
 const LEG_LENGTH_RATIO = {
     thigh: 0.245,
     shin: 0.246
 };
 
-const TORSO = {
-    vector: {
-        x: (ASSET_COORDS.parentOffset.x + ASSET_COORDS.shoulder.x) -
-            (ASSET_COORDS.parentOffset.x + ASSET_COORDS.hip.x),
-        y: (ASSET_COORDS.parentOffset.y + ASSET_COORDS.shoulder.y) -
-            (ASSET_COORDS.parentOffset.y + ASSET_COORDS.hip.y)
-    }
-};
-TORSO.length = Math.hypot(TORSO.vector.x, TORSO.vector.y);
-TORSO.defaultAngleFromHorizontal = Math.atan2(TORSO.vector.y, TORSO.vector.x);
-TORSO.defaultAngleFromVertical = Math.atan2(TORSO.vector.x, -TORSO.vector.y);
+// Re-using TORSO constant logic implicitly via poseSolver
+// Helper to get zoom
+const getZoom = (el) => parseFloat(el.dataset.zoomScale || '1');
 
+export class PassengerRenderer extends BaseHumanRenderer {
+    constructor({ canvasArea, canvasContent, stateManager, layerController, svg, coordinateSystem, config }) {
+        super({
+            canvasArea,
+            canvasContent,
+            stateManager,
+            layerController,
+            svg,
+            coordinateSystem,
+            anchorClass: 'passenger-anchor',
+            layerName: 'passenger'
+        });
+        this.config = config; // { parentSelector, statePrefix, toggleKey, anchorLayerClass, isMidRow }
 
-export class PassengerRenderer {
-    constructor({ canvasArea, stateManager, layerController, svg, config }) {
-        this.canvasArea = canvasArea;
-        // Find canvas content - needed for appending anchor layer
-        this.canvasContent = document.getElementById('canvasContent') || canvasArea;
-        this.stateManager = stateManager;
-        this.layerController = layerController;
-        this.svg = svg;
-        this.config = config; // { parentSelector, statePrefix, toggleKey, anchorLayerClass, layerName }
-
+        // Define Elements
+        const parent = document.querySelector(this.config.parentSelector);
         this.elements = {
-            bodyParent: document.querySelector(this.config.parentSelector),
-            bodyIcon: document.querySelector(`${this.config.parentSelector} .bodyandhead-icon`),
-            bigLegIcon: document.querySelector(`${this.config.parentSelector} .big-leg-icon`),
-            smallLegIcon: document.querySelector(`${this.config.parentSelector} .small-leg-icon`),
-            // No arms
-            kneeMarker: document.querySelector(`${this.config.parentSelector} .knee`),
-            heelMarker: document.querySelector(`${this.config.parentSelector} .heel`),
-            bottomFootMarker: document.querySelector(`${this.config.parentSelector} .bottom-foot`),
-            hipJoint: document.querySelector(`${this.config.parentSelector} .hip-joint`),
-            topHead: document.querySelector(`${this.config.parentSelector} .top-head`)
+            bodyParent: parent,
+            bodyIcon: parent?.querySelector('.bodyandhead-icon'),
+            bigLegIcon: parent?.querySelector('.big-leg-icon'),
+            smallLegIcon: parent?.querySelector('.small-leg-icon'),
+            kneeMarker: parent?.querySelector('.knee'),
+            heelMarker: parent?.querySelector('.heel'),
+            bottomFootMarker: parent?.querySelector('.bottom-foot'),
+            hipJoint: parent?.querySelector('.hip-joint'),
+            topHead: parent?.querySelector('.top-head')
         };
 
-        // Interaction Logic Setup
-        this.latestPassengerPose = null;
-        this.passengerAnchorLayer = document.createElement('div');
-        this.passengerAnchorLayer.className = `passenger-anchor-layer ${this.config.anchorLayerClass || ''}`;
-        this.passengerAnchorLayer.style.display = 'none';
-        this.canvasContent.appendChild(this.passengerAnchorLayer);
+        // Create Anchor Layer
+        const layerClass = `passenger-anchor-layer ${this.config.anchorLayerClass || ''}`;
+        this.createAnchorLayer(layerClass);
 
-        this.passengerAnchors = new Map();
-        // Configs: Hip, Heel, Head
+        // Create Anchors
         this.anchorConfigs = [
             { key: 'hPoint', color: COLOR_FRONT_POINT },
             { key: 'heel', color: COLOR_REAR_POINT },
@@ -71,55 +63,33 @@ export class PassengerRenderer {
         ];
         this.anchorConfigs.forEach(config => this.createAnchor(config));
 
-        this.draggingAnchor = null;
-        this.hoveredAnchor = null;
-
-        this.handleMouseMove = (event) => this.onMouseMove(event);
-        this.handleMouseUp = () => this.onMouseUp();
-        window.addEventListener('mousemove', this.handleMouseMove);
-        window.addEventListener('mouseup', this.handleMouseUp);
-
-
-        this.resizeObserver = new ResizeObserver(() => this.update());
-        this.resizeObserver.observe(this.canvasArea);
+        this.latestPassengerPose = null;
     }
 
     update() {
         if (!this.elements.bodyParent) return;
 
+        this.coordinateSystem.update(); // Ensure coords are fresh
+
         const state = this.stateManager.getState();
         const showPassenger = state[this.config.toggleKey];
-
-        // Opacity Logic
         const driverLayerActive = this.layerController?.isActive('driver') ?? false;
         const passengerLayerActive = this.layerController?.isActive('passenger') ?? false;
 
-        // Check if THIS specific row is the active one selected by the user
+        // Active Row Logic
         const activeRow = state.activePassengerRow || 'last';
         const isMyRowActive = (this.config.isMidRow && activeRow === 'mid') ||
             (!this.config.isMidRow && activeRow === 'last');
 
-        // Visual opacity logic: 
-        // If driver active -> dimmer
-        // If passenger active -> show full
-        // If other active -> dimmer
-        // BUT we need to distinguish WHICH passenger row controls are being viewed?
-        // Currently 'passenger' layer covers both. That's fine.
-
         let opacity = '0.6';
         if (passengerLayerActive) {
-            // If in passenger layer, only the SELECTED row is opaque (1.0).
-            // The other row is dimmed (0.6), just like Driver.
             opacity = isMyRowActive ? '1' : '0.6';
         }
-
         this.elements.bodyParent.style.opacity = opacity;
 
         const pose = this.computePassengerPose(state);
         const canRender = Boolean(showPassenger && pose);
 
-        // Update anchor visibility
-        // Only show anchors if passenger layer is active AND this is the selected row
         this.setAnchorsVisible(passengerLayerActive && canRender && isMyRowActive);
 
         if (!canRender) {
@@ -132,71 +102,138 @@ export class PassengerRenderer {
         }
 
         this.elements.bodyParent.style.display = 'block';
-        // Add class to show markers if needed
         this.elements.bodyParent.classList.toggle('show-passenger-anchors', passengerLayerActive);
 
         this.latestPassengerPose = pose;
 
-        // Apply Transform
-        const svg = this.svg;
-        const transformInfo = this.getSvgTransformInfo(svg);
-        if (!transformInfo) return;
-
-        const svgScale = this.getSvgUnitScale(transformInfo.ctm);
-        const zoom = parseFloat(this.canvasArea.dataset.zoomScale || '1');
-        const finalContainerScale = (pose.globalScale * svgScale) / zoom;
-
-        const hipScreen = this.worldToCanvasPoint(pose.hip.x, pose.hip.y, svg, transformInfo);
+        // Positioning
+        const hipScreen = this.coordinateSystem.worldToOverlay(pose.hip.x, pose.hip.y);
 
         if (hipScreen) {
-            const containerTx = hipScreen.x - (HIP_ASSET_POSITION.x * finalContainerScale);
-            const containerTy = hipScreen.y - (HIP_ASSET_POSITION.y * finalContainerScale);
+            const svgScale = this.coordinateSystem.svgUnitScale || 1;
+            const zoom = parseFloat(this.canvasArea.dataset.zoomScale || '1');
+            const finalContainerScale = (pose.globalScale * svgScale) / zoom;
+
+            const hipAssetX = this.coordinateSystem.hipAssetPosition.x;
+            const hipAssetY = this.coordinateSystem.hipAssetPosition.y;
+
+            const containerTx = hipScreen.x - (hipAssetX * finalContainerScale);
+            const containerTy = hipScreen.y - (hipAssetY * finalContainerScale);
 
             this.elements.bodyParent.style.transformOrigin = 'top left';
             this.elements.bodyParent.style.transform = `translate(${containerTx}px, ${containerTy}px) scale(${finalContainerScale})`;
 
-            // Apply Sub-element Transforms
             this.applyLowerBodyPose(pose);
             this.applyUpperBodyPose(pose);
             this.updateMarkers(pose);
 
-            // Update Anchors
-            if (passengerLayerActive) {
-                this.updateAnchorPositions(pose, svg, transformInfo);
+            if (passengerLayerActive && isMyRowActive) {
+                this.updateAnchors(pose);
             }
         }
     }
 
-    computePassengerPose(state) {
-        // Dynamic Key Access
-        const P = this.config.statePrefix; // e.g. 'passenger' or 'midRow'
+    updateAnchors(pose) {
+        this.updateAnchorPosition('hPoint', pose.hip.x, pose.hip.y);
+        this.updateAnchorPosition('heel', pose.heel.x, pose.heel.y);
+        this.updateAnchorPosition('head', pose.head.x, pose.head.y);
+    }
 
-        const hPointXPx = (state[`${P}HPointX`] || 0) * SCALE;
+    onAnchorMouseDown(key, event) {
+        if (!this.layerController?.isActive('passenger')) return;
+        super.onAnchorMouseDown(key, event);
 
-        // Compute Hip X based on reference logic
-        // If Mid Row: Reference is CENTER_X
-        // If Last Row: Reference is Rear Axle
+        const P = this.config.statePrefix;
+        let param = null;
+        if (key === 'hPoint') param = [`${P}HPointX`, `${P}HPointHeight`];
+        else if (key === 'heel') param = [`${P}FootFloorDist`, `${P}HipFootDist`];
+        else if (key === 'head') param = `${P}BodyRecline`;
 
-        let hipX;
-        let referenceX; // For dragging
+        if (param) this.stateManager.setInteraction(param);
+    }
 
-        if (this.config.isMidRow) {
-            const centerX = CENTER_X; // Mid Axle (Center)
-            // Range -1000 to 1000. 
-            // If +500 (forward?), hip should be left of center?
-            // "Dist to mid axle". If I look at Last row: rearWheelX - hPointXPx. (Rear is right, minus means left).
-            // So +500 means 500px in front (left) of rear axle.
-            // Let's reuse that convention: + means Left (Front). - means Right (Rear).
-            hipX = centerX - hPointXPx;
-            referenceX = centerX;
-        } else {
-            // Last Row (Default)
-            // Reference: Rear Axle
-            const wheelBasePx = state.wheelBase * SCALE;
-            const rearWheelX = CENTER_X + (wheelBasePx / 2); // Rear Axle X
-            hipX = rearWheelX - hPointXPx;
-            referenceX = rearWheelX;
+    onDrag(key, svgCoords) {
+        if (!this.latestPassengerPose) return;
+        const { referenceX, floorY, hip } = this.latestPassengerPose;
+        const P = this.config.statePrefix;
+
+        switch (key) {
+            case 'hPoint': {
+                // referenceX is Driver H-Point X.
+                // distFromDriver = hipX - driverX.
+                // dragging gives new hipX (svgCoords.x).
+                // so newDist = svgCoords.x - referenceX
+                const newDistX = Math.round((svgCoords.x - referenceX) / SCALE);
+                const newHeight = Math.round((floorY - svgCoords.y) / SCALE);
+                this.applyInputUpdates({
+                    [`${P}HPointX`]: newDistX,
+                    [`${P}HPointHeight`]: newHeight
+                });
+                break;
+            }
+            case 'heel': {
+                // heelY is derived from FootFloorDist
+                // newFootFloorDist = floorY - heelY
+                const newFootFloorDist = Math.round((floorY - svgCoords.y) / SCALE);
+
+                // heelX = hipX - HipFootDist
+                // so HipFootDist = hipX - heelX
+                const newHipFootDist = Math.round((hip.x - svgCoords.x) / SCALE);
+
+                this.applyInputUpdates({
+                    [`${P}FootFloorDist`]: newFootFloorDist,
+                    [`${P}HipFootDist`]: newHipFootDist
+                });
+                break;
+            }
+            case 'head': {
+                const dx = svgCoords.x - hip.x;
+                const dy = svgCoords.y - hip.y;
+                const angleRad = Math.atan2(dx, -(svgCoords.y - hip.y));
+                const angleDeg = Math.round(angleRad * 180 / Math.PI);
+
+                this.applyInputUpdates({
+                    [`${P}BodyRecline`]: angleDeg
+                });
+                break;
+            }
         }
+    }
+
+    applyInputUpdates(updates) {
+        if (!updates || typeof updates !== 'object') return;
+        const state = this.stateManager.getState();
+
+        Object.entries(updates).forEach(([stateKey, value]) => {
+            let effectiveMax = Infinity;
+            let effectiveMin = -Infinity;
+            const adjuster = document.querySelector(`.smart-adjuster[data-param="${stateKey}"]`);
+            if (adjuster) {
+                const minVal = parseFloat(adjuster.dataset.min);
+                const maxVal = parseFloat(adjuster.dataset.max);
+                if (Number.isFinite(minVal)) effectiveMin = minVal;
+                if (Number.isFinite(maxVal)) effectiveMax = maxVal;
+            }
+            const clampedValue = Math.max(effectiveMin, Math.min(effectiveMax, value));
+            if (state[stateKey] !== clampedValue && Number.isFinite(clampedValue)) {
+                this.stateManager.setState({ [stateKey]: clampedValue });
+            }
+        });
+    }
+
+    computePassengerPose(state) {
+        const P = this.config.statePrefix;
+
+        // Calculate Driver H-Point X (World Px)
+        const wheelBasePx = state.wheelBase * SCALE;
+        const frontWheelX = CENTER_X - (wheelBasePx / 2);
+        const driverHPointX = frontWheelX + ((state.hPointX || 0) * SCALE);
+
+        // Input value is "Distance from Driver" (positive = behind driver)
+        const distFromDriverPx = (state[`${P}HPointX`] || 0) * SCALE;
+
+        const hipX = driverHPointX + distFromDriverPx;
+        const referenceX = driverHPointX; // Dragging reference is Driver H-Point
 
         const groundClearancePx = state.groundClearance * SCALE;
         const floorThicknessPx = state.floorThickness * SCALE;
@@ -210,20 +247,20 @@ export class PassengerRenderer {
 
         const footFloorDistPx = (state[`${P}FootFloorDist`] || 0) * SCALE;
         const heelY = floorY - footFloorDistPx;
-
         const hipFootDistPx = (state[`${P}HipFootDist`] || 0) * SCALE;
         const heelX = hip.x - hipFootDistPx;
-
         const heel = { x: heelX, y: heelY };
 
         const heightVal = state[`${P}Height`] || 170;
         const heightPx = heightVal * 10 * SCALE;
+
         const legPose = this.solveLegIK(hip, heel, heightPx);
 
         const bodyRecline = state[`${P}BodyRecline`] || 28;
-        const torsoPose = this.solveTorso(bodyRecline, legPose.thighPx, hip);
+        const proxyState = { bodyReclineAngle: bodyRecline };
+        const torsoPose = solveTorsoRotation(proxyState, legPose.thighPx, hip);
 
-        const head = this.computeHead(hip, legPose.globalScale, torsoPose.actualBodyReclineAngle);
+        const head = computeHeadPosition(null, hip, legPose.globalScale, torsoPose.actualBodyReclineAngle);
 
         return {
             hip,
@@ -236,7 +273,6 @@ export class PassengerRenderer {
             shinScale: legPose.shinScale,
             torsoRotationDeg: torsoPose.relativeRotationDeg,
             head,
-            // For dragging calculations
             floorY,
             referenceX
         };
@@ -289,36 +325,6 @@ export class PassengerRenderer {
         };
     }
 
-    solveTorso(reclineDeg, thighLenPx, hip) {
-        const desiredRad = ((reclineDeg - (TORSO.defaultAngleFromVertical * 180 / Math.PI)) * Math.PI / 180);
-        return {
-            relativeRotationDeg: desiredRad * 180 / Math.PI,
-            actualBodyReclineAngle: reclineDeg
-        };
-    }
-
-    computeHead(hip, globalScale, reclineDeg) {
-        const headVector = {
-            x: ASSET_COORDS.head.x - ASSET_COORDS.hip.x,
-            y: ASSET_COORDS.head.y - ASSET_COORDS.hip.y
-        };
-        const defaultBodyAngleFromVertical = TORSO.defaultAngleFromVertical * 180 / Math.PI;
-        const deltaDeg = (reclineDeg ?? defaultBodyAngleFromVertical) - defaultBodyAngleFromVertical;
-        const rotationRad = deltaDeg * Math.PI / 180;
-
-        const cos = Math.cos(rotationRad);
-        const sin = Math.sin(rotationRad);
-        const rotated = {
-            x: headVector.x * cos - headVector.y * sin,
-            y: headVector.x * sin + headVector.y * cos
-        };
-
-        return {
-            x: hip.x + rotated.x * globalScale,
-            y: hip.y + rotated.y * globalScale
-        };
-    }
-
     computeFootEnd(knee, shinAngle, shinLen) {
         const footVec = {
             x: 0 - ASSET_COORDS.knee.x,
@@ -344,17 +350,29 @@ export class PassengerRenderer {
     applyLowerBodyPose(pose) {
         const { bigLegIcon, smallLegIcon } = this.elements;
         if (bigLegIcon) {
+            // Use left/top for robust positioning
+            // Use global coordinates for Icon which is in global container space
+            const hipAsset = this.coordinateSystem.worldToAsset(pose.hip, pose);
+
+            if (hipAsset) {
+                // Direct Global Use
+                bigLegIcon.style.left = `${hipAsset.x - ASSET_PIVOTS.bigLeg.x}px`;
+                bigLegIcon.style.top = `${hipAsset.y - ASSET_PIVOTS.bigLeg.y}px`;
+            }
+
             bigLegIcon.style.transformOrigin = `${ASSET_PIVOTS.bigLeg.x}px ${ASSET_PIVOTS.bigLeg.y}px`;
             bigLegIcon.style.transform = `rotate(${pose.thighRotationDeg}deg)`;
         }
 
         if (smallLegIcon) {
-            const kneeAsset = this.worldToAssetPoint(pose.knee, pose);
+            // Using coordinateSystem to get asset point
+            const kneeAsset = this.coordinateSystem.worldToAsset(pose.knee, pose);
             if (kneeAsset) {
-                const dx = kneeAsset.x - (ASSET_COORDS.parentOffset.x + ASSET_COORDS.knee.x);
-                const dy = kneeAsset.y - (ASSET_COORDS.parentOffset.y + ASSET_COORDS.knee.y);
+                // Direct Global Use
+                smallLegIcon.style.left = `${kneeAsset.x - ASSET_PIVOTS.smallLeg.x}px`;
+                smallLegIcon.style.top = `${kneeAsset.y - ASSET_PIVOTS.smallLeg.y}px`;
                 smallLegIcon.style.transformOrigin = `${ASSET_PIVOTS.smallLeg.x}px ${ASSET_PIVOTS.smallLeg.y}px`;
-                smallLegIcon.style.transform = `translate(${dx}px, ${dy}px) rotate(${pose.shinRotationDeg}deg) scale(${pose.shinScale || 1})`;
+                smallLegIcon.style.transform = `rotate(${pose.shinRotationDeg}deg) scale(${pose.shinScale || 1})`;
             }
         }
     }
@@ -376,281 +394,13 @@ export class PassengerRenderer {
 
     updateMarker(element, worldPoint, pose, rotationDeg = 0) {
         if (!element || !worldPoint) return;
-        const assetPoint = this.worldToAssetPoint(worldPoint, pose);
-        const local = this.assetToLocal(assetPoint);
+        const assetPoint = this.coordinateSystem.worldToAsset(worldPoint, pose);
+        const local = this.coordinateSystem.assetToLocal(assetPoint);
+
         if (local) {
             element.style.left = `${local.x}px`;
             element.style.top = `${local.y}px`;
             element.style.transform = rotationDeg ? `rotate(${rotationDeg}deg)` : 'none';
-        }
-    }
-
-    // --- Interaction Logic ---
-
-    createAnchor({ key, color }) {
-        const anchor = document.createElement('div');
-        anchor.className = 'passenger-anchor';
-        anchor.dataset.anchor = key;
-        const diameter = DOT_RADIUS * 2;
-        anchor.style.width = `${diameter}px`;
-        anchor.style.height = `${diameter}px`;
-        anchor.style.backgroundColor = color;
-
-        anchor.addEventListener('mouseenter', () => this.onAnchorHover(key));
-        anchor.addEventListener('mouseleave', () => this.onAnchorLeave(key));
-        anchor.addEventListener('mousedown', (event) => this.onAnchorMouseDown(key, event));
-
-        this.passengerAnchorLayer.appendChild(anchor);
-        this.passengerAnchors.set(key, anchor);
-    }
-
-    setAnchorsVisible(visible) {
-        if (!this.passengerAnchorLayer) return;
-        this.passengerAnchorLayer.style.display = visible ? 'block' : 'none';
-        this.passengerAnchorLayer.style.pointerEvents = visible ? 'auto' : 'none';
-        this.passengerAnchors.forEach((anchor) => {
-            anchor.classList.toggle('is-visible', visible);
-        });
-        if (!visible) {
-            this.cancelDrag();
-        }
-    }
-
-    updateAnchorPositions(pose, svg, transformInfo) {
-        // HPoint
-        this.updateAnchorPos('hPoint', pose.hip.x, pose.hip.y, svg, transformInfo);
-        // Heel
-        this.updateAnchorPos('heel', pose.heel.x, pose.heel.y, svg, transformInfo);
-        // Head
-        this.updateAnchorPos('head', pose.head.x, pose.head.y, svg, transformInfo);
-    }
-
-    updateAnchorPos(key, worldX, worldY, svg, transformInfo) {
-        const anchor = this.passengerAnchors.get(key);
-        if (!anchor) return;
-        const point = this.worldToCanvasPoint(worldX, worldY, svg, transformInfo);
-        if (!point) return;
-        anchor.style.left = `${point.x}px`;
-        anchor.style.top = `${point.y}px`;
-    }
-
-    onAnchorHover(key) {
-        this.hoveredAnchor = key;
-        this.setAnchorVisualState(key, true);
-    }
-
-    onAnchorLeave(key) {
-        if (this.draggingAnchor === key) return;
-        if (this.hoveredAnchor === key) this.hoveredAnchor = null;
-        this.setAnchorVisualState(key, false);
-    }
-
-    setAnchorVisualState(key, isActive) {
-        const anchor = this.passengerAnchors.get(key);
-        if (anchor) anchor.classList.toggle('is-active', isActive);
-    }
-
-    onAnchorMouseDown(key, event) {
-        if (!this.layerController?.isActive('passenger')) return;
-
-        const svgCoords = this.getSvgCoordsFromEvent(event);
-        if (!svgCoords) return;
-
-        this.draggingAnchor = key;
-        this.setAnchorVisualState(key, true);
-
-        const P = this.config.statePrefix;
-        let param = null;
-        if (key === 'hPoint') param = [`${P}HPointX`, `${P}HPointHeight`];
-        else if (key === 'heel') param = [`${P}FootFloorDist`, `${P}HipFootDist`];
-        else if (key === 'head') param = `${P}BodyRecline`;
-
-        if (param) this.stateManager.setInteraction(param);
-
-        this.handleDrag(key, svgCoords);
-        event.preventDefault();
-        event.stopPropagation();
-    }
-
-    onMouseMove(event) {
-        if (!this.draggingAnchor) return;
-        const svgCoords = this.getSvgCoordsFromEvent(event);
-        if (!svgCoords) return;
-        this.handleDrag(this.draggingAnchor, svgCoords);
-    }
-
-    onMouseUp() {
-        if (!this.draggingAnchor) return;
-        const key = this.draggingAnchor;
-        this.draggingAnchor = null;
-        if (this.hoveredAnchor !== key) {
-            this.setAnchorVisualState(key, false);
-        }
-        this.stateManager.setInteraction(null);
-    }
-
-    cancelDrag() {
-        if (this.draggingAnchor) {
-            const key = this.draggingAnchor;
-            this.draggingAnchor = null;
-            this.setAnchorVisualState(key, false);
-        }
-        this.hoveredAnchor = null;
-    }
-
-    handleDrag(key, svgCoords) {
-        if (!this.latestPassengerPose) return;
-        const { referenceX, floorY, hip } = this.latestPassengerPose;
-        const P = this.config.statePrefix;
-
-        switch (key) {
-            case 'hPoint': {
-                // X Logic: referenceX - HPointX = CursorX
-                // => HPointX = referenceX - CursorX
-                // This logic holds for both Mid (reference=CenterX) and Last (reference=RearAxleX)
-                // assuming +X means "Front of Reference".
-
-                const newDistX = Math.round((referenceX - svgCoords.x) / SCALE);
-
-                // Height is FloorY - HipY
-                // So HipY = FloorY - Height
-                // Height = FloorY - CursorY
-                const newHeight = Math.round((floorY - svgCoords.y) / SCALE);
-
-                this.applyInputUpdates({
-                    [`${P}HPointX`]: newDistX,
-                    [`${P}HPointHeight`]: newHeight
-                });
-                break;
-            }
-            case 'heel': {
-                // FootFloorDist (Y)
-                // HeelY = FloorY - FootFloorDist
-                // FootFloorDist = FloorY - HeelY
-                const newFootFloorDist = Math.round((floorY - svgCoords.y) / SCALE);
-
-                // HipFootDist (X)
-                // HeelX = HipX - HipFootDist
-                // HipFootDist = HipX - HeelX
-                const newHipFootDist = Math.round((hip.x - svgCoords.x) / SCALE);
-
-                this.applyInputUpdates({
-                    [`${P}FootFloorDist`]: newFootFloorDist,
-                    [`${P}HipFootDist`]: newHipFootDist
-                });
-                break;
-            }
-            case 'head': {
-                // Body Recline
-                // Calculate angle between Hip and Cursor
-                const dx = svgCoords.x - hip.x;
-                const dy = svgCoords.y - hip.y;
-                const angleRad = Math.atan2(dx, -dy);
-                const angleDeg = angleRad * 180 / Math.PI;
-
-                this.applyInputUpdates({
-                    [`${P}BodyRecline`]: Math.round(angleDeg)
-                });
-                break;
-            }
-        }
-    }
-
-    applyInputUpdates(updates) {
-        if (!updates || typeof updates !== 'object') return;
-        const state = this.stateManager.getState();
-        let hasChange = false;
-
-        Object.entries(updates).forEach(([stateKey, value]) => {
-            let effectiveMax = Infinity;
-            let effectiveMin = -Infinity;
-
-            // Check if we have the input element to read constraints
-            const adjuster = document.querySelector(`.smart-adjuster[data-param="${stateKey}"]`);
-            if (adjuster) {
-                effectiveMin = parseFloat(adjuster.dataset.min);
-                effectiveMax = parseFloat(adjuster.dataset.max);
-            }
-
-            const clampedValue = Math.max(effectiveMin, Math.min(effectiveMax, value));
-
-            if (state[stateKey] !== clampedValue) {
-                this.stateManager.setState({ [stateKey]: clampedValue });
-            }
-        });
-    }
-
-    getSvgCoordsFromEvent(event) {
-        if (!this.svg) return null;
-        const ctm = this.svg.getScreenCTM();
-        if (!ctm) return null;
-        const pt = this.svg.createSVGPoint();
-        pt.x = event.clientX;
-        pt.y = event.clientY;
-        return pt.matrixTransform(ctm.inverse());
-    }
-
-    // --- Helpers ---
-
-    worldToAssetPoint(worldPoint, pose) {
-        if (!worldPoint || !pose?.hip || !pose.globalScale) return null;
-        return {
-            x: HIP_ASSET_POSITION.x + ((worldPoint.x - pose.hip.x) / pose.globalScale),
-            y: HIP_ASSET_POSITION.y + ((worldPoint.y - pose.hip.y) / pose.globalScale)
-        };
-    }
-
-    assetToLocal(assetPoint) {
-        if (!assetPoint) return null;
-        return {
-            x: assetPoint.x - ASSET_COORDS.parentOffset.x,
-            y: assetPoint.y - ASSET_COORDS.parentOffset.y
-        };
-    }
-
-    getSvgTransformInfo(svg) {
-        if (!svg) svg = this.svg;
-        if (!svg) return null;
-        const ctm = svg.getScreenCTM();
-        if (!ctm) return null;
-        return { ctm };
-    }
-
-    getSvgUnitScale(ctm) {
-        const scaleX = Math.hypot(ctm.a, ctm.b);
-        const scaleY = Math.hypot(ctm.c, ctm.d);
-        return (scaleX + scaleY) / 2;
-    }
-
-    worldToCanvasPoint(x, y, svg, info) {
-        if (!svg || !info) return null;
-        const pt = svg.createSVGPoint();
-        pt.x = x;
-        pt.y = y;
-        const transformed = pt.matrixTransform(info.ctm);
-        return this.screenToOverlayLocal(transformed);
-    }
-
-    screenToOverlayLocal(point) {
-        const rect = this.canvasArea.getBoundingClientRect();
-        const zoom = parseFloat(this.canvasArea.dataset.zoomScale || '1');
-        const offsetX = parseFloat(this.canvasArea.dataset.zoomOffsetX || '0');
-        const offsetY = parseFloat(this.canvasArea.dataset.zoomOffsetY || '0');
-        const relX = point.x - rect.left;
-        const relY = point.y - rect.top;
-        return {
-            x: (relX - offsetX) / zoom,
-            y: (relY - offsetY) / zoom
-        };
-    }
-
-    destroy() {
-        this.resizeObserver.disconnect();
-        window.removeEventListener('mousemove', this.handleMouseMove);
-        window.removeEventListener('mouseup', this.handleMouseUp);
-        // Clean up anchors?
-        if (this.passengerAnchorLayer) {
-            this.passengerAnchorLayer.remove();
         }
     }
 }

@@ -7,7 +7,26 @@
     /* Use black as accent for active tabs? Or keep blue? Figma uses black for active tab. */
     --accent-glow: rgba(0, 0, 0, 0.1);
     --border-color: rgba(0, 0, 0, 0.1);
-    --controls-backdrop-offset: 290px;
+    --controls-backdrop-offset: 350px;
+    /* Increased to cover taller controls */
+}
+
+/* ... existing styles ... */
+
+#profileBarContainer {
+    position: absolute;
+    top: auto;
+    bottom: 360px;
+    /* Raised above the controls area */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+    z-index: 1000;
+    pointer-events: none;
+    /* Allow clicks to pass through container */
+    transition: transform 0.3s ease;
 }
 
 * {
@@ -620,6 +639,45 @@ input[type=range]::-moz-range-thumb {
     display: none;
 }
 
+/* Smart Hover & Selection */
+.bodyandhead-parent .bodyandhead-icon,
+.bodyandhead-parent .big-leg-icon,
+.bodyandhead-parent .bigarm-icon,
+.bodyandhead-parent .small-leg-icon,
+.bodyandhead-parent .small-arm-icon,
+.passenger-parent-mid .bodyandhead-icon,
+.passenger-parent-mid .big-leg-icon,
+.passenger-parent-mid .small-leg-icon,
+.passenger-parent-last .bodyandhead-icon,
+.passenger-parent-last .big-leg-icon,
+.passenger-parent-last .small-leg-icon {
+    pointer-events: auto;
+}
+
+.bodyandhead-parent.is-hovered,
+.passenger-parent-mid.is-hovered,
+.passenger-parent-last.is-hovered {
+    opacity: 0.8 !important;
+    /* Non-selected hover state */
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.bodyandhead-parent.is-active,
+.passenger-parent-mid.is-active,
+.passenger-parent-last.is-active {
+    opacity: 1.0 !important;
+    /* Selected state */
+}
+
+.bodyandhead-parent.is-inactive,
+.passenger-parent-mid.is-inactive,
+.passenger-parent-last.is-inactive {
+    opacity: 0.6;
+    /* Non-selected state */
+    transition: opacity 0.3s ease;
+}
+
 .driver-anchor-layer,
 .passenger-anchor-layer {
     position: absolute;
@@ -722,7 +780,8 @@ input[type=range]::-moz-range-thumb {
 #profileBarContainer {
     position: absolute;
     top: auto;
-    bottom: var(--controls-content-height, 120px);
+    bottom: 360px;
+    /* Raised above the controls area */
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -783,6 +842,10 @@ input[type=range]::-moz-range-thumb {
     /* Ensure top padding stays consistent */
 }
 
+.chassis-controls-overlay,
+.driver-controls-overlay,
+.passenger-controls-overlay,
+.passenger-subset-controls,
 .profile-controls-overlay {
     position: absolute;
     bottom: 110px;
@@ -794,7 +857,21 @@ input[type=range]::-moz-range-thumb {
     z-index: 100;
     align-items: center;
     pointer-events: none;
+    /* Let clicks pass through to canvas */
     transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.chassis-controls-overlay .control-row,
+.driver-controls-overlay .control-row,
+.passenger-controls-overlay .control-row,
+.profile-controls-overlay .control-row,
+.passenger-options-popup,
+/* Ensure popup works if inside */
+.smart-adjuster,
+.smart-toggle,
+.smart-button {
+    pointer-events: auto;
+    /* Re-enable for controls */
 }
 
 .profile-controls-overlay.hidden {

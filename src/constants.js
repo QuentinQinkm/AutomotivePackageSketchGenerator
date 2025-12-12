@@ -119,14 +119,14 @@ export const DEFAULT_PROFILE = {
     "showMannequin": true,
     "showLastRow": true,
     "passengerHPointHeight": 280,
-    "passengerHPointX": 500, /* Distance to rear axle */
+    "passengerHPointX": 1000, /* Distance to Driver */
     "passengerHipFootDist": 600,
     "passengerBodyRecline": 28,
     "passengerFootFloorDist": 0,
     "passengerHeight": 170,
     "showMidRow": false,
     "midRowHPointHeight": 280,
-    "midRowHPointX": 0, /* Distance to mid axle (center) */
+    "midRowHPointX": 500, /* Distance to Driver */
     "midRowHipFootDist": 600,
     "midRowBodyRecline": 28,
     midRowFootFloorDist: 0,
